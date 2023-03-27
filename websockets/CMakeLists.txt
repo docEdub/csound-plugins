@@ -6,7 +6,7 @@ FIND_LIBRARY(websockets_library NAMES websockets)
 if(APPLE)
   # AMF: I hacked this to work with homebrew on macOS.
   # - I installed the `openssl` library with `brew install openssl`.
-  # - I also installed the `crypol` library with `brew install cryptol`, but I don't think it's needed.
+  # - I also installed the `cryptol` library with `brew install cryptol`, but I don't think it's needed. There's a `crypto` library in the `openssl` package.
   # - The `websockets` library was already installed in homebrew. The `openssl` library may have brought it in.
   set(HOMEBREW_OPENSSL_PATH "/opt/homebrew/Cellar/openssl@3/3.1.0")
   FIND_LIBRARY (ssl_library NAMES ssl PATHS "${HOMEBREW_OPENSSL_PATH}/lib")
