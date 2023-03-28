@@ -111,12 +111,12 @@ void WebSocketOpcode_sendInputArgumentData(CSOUND *csound, WebSocketOpcode *self
                                   currentArgument->dataPointer,
                                   currentArgument->itemsCount);
 
-      if (UNLIKELY(itemsWritten != currentArgument->itemsCount)) {
+      // if (UNLIKELY(itemsWritten != currentArgument->itemsCount)) {
 
-        csound->Message(csound,
-                        Str("websocket: variable %s data not sent, "
-                            "buffer overrrun\n"), currentArgument->name);
-      }
+      //   csound->Message(csound,
+      //                   Str("websocket: variable %s data not sent, "
+      //                       "buffer overrrun\n"), currentArgument->name);
+      // }
     }
 }
 
@@ -357,10 +357,13 @@ void WebSocketOpcode_initialiseArguments(WebSocketOpcode *self, CSOUND *csound)
     self->outputArguments =
       csound->Calloc(csound, sizeof(OpcodeArgument) * self->outputArgumentCount);
 
+    csound->Message(csound, Str("websocket: input args ...\n"));
     WebSocketOpcode_initialiseArgumentsArray(csound, self, self->inputArguments,
                                  self->inputArgumentCount,
                                  &self->arguments[self->outputArgumentCount + 1],
                                  true);
+
+    csound->Message(csound, Str("websocket: output args ...\n"));
     WebSocketOpcode_initialiseArgumentsArray(csound, self, self->outputArguments,
                                              self->outputArgumentCount,
                                              self->arguments, false);
@@ -583,8 +586,19 @@ uintptr_t WebSocketOpcode_processThread(void *opaquePointer)
 
     while (self->isRunning == 1) {
 
+      // https://libwebsockets.org/lws-api-doc-main/html/group__service.html#gaf95bd0c663d6516a0c80047d9b1167a8
+      //
+      // Service any pending websocket activity.
+      //  context:  Websocket context
+      //  timeout_ms:  Set to 0; ignored; for backward compatibility
+      //
+      lws_service(self->webSocket->context, 0);
 
-      lws_service(self->webSocket->context, 10);
+      // https://libwebsockets.org/lws-api-doc-main/html/group__callback-when-writeable.html#gabbe4655c7eeb3eb1671b2323ec6b3107
+      //
+      // Request a callback for all connections using the given protocol when it becomes possible to write to each socket without blocking in turn.
+      //  context:  Websocket context
+      //  protocol:  Protocol whose connections will get callbacks
       lws_callback_on_writable_all_protocol(self->webSocket->context,
                                             &self->webSocket->protocols[0]);
     }
@@ -653,21 +667,27 @@ ArgumentType WebSocketOpcode_getArgumentType(CSOUND *csound, MYFLT *argument)
     const char *type = csoundType->varTypeName;
     ArgumentType argumentType = UNKNOWN;
 
+    csound->Message(csound, Str("    "));
+
     if (strcmp("S", type) == 0) {
 
       argumentType = STRING_VAR;
+      csound->Message(csound, Str("argument type = S\n"));
     }
     else if (strcmp("a", type) == 0) {
 
       argumentType = ARATE_VAR;
+      csound->Message(csound, Str("argument type = a\n"));
     }
     else if (strcmp("k", type) == 0) {
 
       argumentType = KRATE_VAR;
+      csound->Message(csound, Str("argument type = k\n"));
     }
     else if (strcmp("i", type) == 0) {
 
       argumentType = IRATE_VAR;
+      csound->Message(csound, Str("argument type = i\n"));
     }
     else if (strcmp("[", type) == 0) {
 
@@ -676,14 +696,17 @@ ArgumentType WebSocketOpcode_getArgumentType(CSOUND *csound, MYFLT *argument)
       if (strcmp("k", array->arrayType->varTypeName) == 0) {
 
         argumentType = KRATE_ARRAY;
+        csound->Message(csound, Str("argument type = k[]\n"));
       }
       else if (strcmp("a", array->arrayType->varTypeName) == 0) {
 
         argumentType = ARATE_ARRAY;
+        csound->Message(csound, Str("argument type = a[]\n"));
       }
       else if (strcmp("i", array->arrayType->varTypeName) == 0) {
 
         argumentType = IRATE_ARRAY;
+        csound->Message(csound, Str("argument type = i[]\n"));
       }
     }
 
