@@ -220,20 +220,20 @@ void WebSocketOpcode_allocateStringArgument(MYFLT *argument,
     }
     else {
 
-      if (UNLIKELY(string->size != 0)) {
+      // if (UNLIKELY(string->size != 0)) {
 
-        csound->Die(csound,
-                     Str("websocket: error output string variable %s must not "
-                        "be initialised\nExiting"),
-                    argumentArrayItem->name);
-      }
-      else {
+      //   csound->Die(csound,
+      //                Str("websocket: error output string variable %s must not "
+      //                   "be initialised\nExiting"),
+      //               argumentArrayItem->name);
+      // }
+      // else {
 
         argumentArrayItem->itemsCount = stringVarMaximumBytesCount;
         string->data = csound->ReAlloc(csound, string->data,
                                        stringVarMaximumBytesCount);
         memset(string->data, 0, stringVarMaximumBytesCount);
-      }
+      // }
     }
 
     argumentArrayItem->dataPointer = string->data;
