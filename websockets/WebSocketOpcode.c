@@ -357,13 +357,13 @@ void WebSocketOpcode_initialiseArguments(WebSocketOpcode *self, CSOUND *csound)
     self->outputArguments =
       csound->Calloc(csound, sizeof(OpcodeArgument) * self->outputArgumentCount);
 
-    csound->Message(csound, Str("websocket: input args ...\n"));
+    csound->Message(csound, Str("%s"), "websocket: input args ...\n");
     WebSocketOpcode_initialiseArgumentsArray(csound, self, self->inputArguments,
                                  self->inputArgumentCount,
                                  &self->arguments[self->outputArgumentCount + 1],
                                  true);
 
-    csound->Message(csound, Str("websocket: output args ...\n"));
+    csound->Message(csound, Str("%s"), "websocket: output args ...\n");
     WebSocketOpcode_initialiseArgumentsArray(csound, self, self->outputArguments,
                                              self->outputArgumentCount,
                                              self->arguments, false);
@@ -667,27 +667,27 @@ ArgumentType WebSocketOpcode_getArgumentType(CSOUND *csound, MYFLT *argument)
     const char *type = csoundType->varTypeName;
     ArgumentType argumentType = UNKNOWN;
 
-    csound->Message(csound, Str("    "));
+    csound->Message(csound, Str("%s"), "    ");
 
     if (strcmp("S", type) == 0) {
 
       argumentType = STRING_VAR;
-      csound->Message(csound, Str("argument type = S\n"));
+      csound->Message(csound, Str("%s"), "argument type = S\n");
     }
     else if (strcmp("a", type) == 0) {
 
       argumentType = ARATE_VAR;
-      csound->Message(csound, Str("argument type = a\n"));
+      csound->Message(csound, Str("%s"), "argument type = a\n");
     }
     else if (strcmp("k", type) == 0) {
 
       argumentType = KRATE_VAR;
-      csound->Message(csound, Str("argument type = k\n"));
+      csound->Message(csound, Str("%s"), "argument type = k\n");
     }
     else if (strcmp("i", type) == 0) {
 
       argumentType = IRATE_VAR;
-      csound->Message(csound, Str("argument type = i\n"));
+      csound->Message(csound, Str("%s"), "argument type = i\n");
     }
     else if (strcmp("[", type) == 0) {
 
@@ -696,17 +696,17 @@ ArgumentType WebSocketOpcode_getArgumentType(CSOUND *csound, MYFLT *argument)
       if (strcmp("k", array->arrayType->varTypeName) == 0) {
 
         argumentType = KRATE_ARRAY;
-        csound->Message(csound, Str("argument type = k[]\n"));
+        csound->Message(csound, Str("%s"), "argument type = k[]\n");
       }
       else if (strcmp("a", array->arrayType->varTypeName) == 0) {
 
         argumentType = ARATE_ARRAY;
-        csound->Message(csound, Str("argument type = a[]\n"));
+        csound->Message(csound, Str("%s"), "argument type = a[]\n");
       }
       else if (strcmp("i", array->arrayType->varTypeName) == 0) {
 
         argumentType = IRATE_ARRAY;
-        csound->Message(csound, Str("argument type = i[]\n"));
+        csound->Message(csound, Str("%s"), "argument type = i[]\n");
       }
     }
 
