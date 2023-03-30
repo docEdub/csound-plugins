@@ -714,6 +714,53 @@ ArgumentType WebSocketOpcode_getArgumentType(CSOUND *csound, MYFLT *argument)
     return argumentType;
 }
 
+int32_t WebsocketGet_k_S_init(CSOUND *csound, WebsocketGet_k_S *p)
+{
+    p->csound = csound;
+    return OK;
+}
+
+int32_t WebsocketGet_k_S_perf(CSOUND *csound, WebsocketGet_k_S *p) {
+    static MYFLT i = 0;
+    *p->output = i++;
+    return OK;
+}
+
+int32_t WebsocketGetArray_k_S_init(CSOUND *csound, WebsocketGetArray_k_S *p)
+{
+    p->csound = csound;
+    return OK;
+}
+
+int32_t WebsocketGetArray_k_S_perf(CSOUND *csound, WebsocketGetArray_k_S *p) {
+    static MYFLT i = 0;
+    for (int j = 0; j < p->output->sizes[0]; ++j) {
+        p->output->data[j] = i++;
+    }
+    return OK;
+}
+
+int32_t WebsocketGet_S_S_init(CSOUND *csound, WebsocketGet_S_S *p)
+{
+    p->csound = csound;
+    p->output->data = csound->Calloc(csound, 11);
+    p->i = 0;
+    return OK;
+}
+
+int32_t WebsocketGet_S_S_perf(CSOUND *csound, WebsocketGet_S_S *p) {
+    if (p->i == 0) {
+      memset(p->output->data, 0, 11);
+    }
+    p->i++;
+    for (int j = 0; j < p->i; ++j) {
+        p->output->data[j] = '.';
+    }
+    p->output->size = p->i;
+    p->i %= 10;
+    return OK;
+}
+
 static OENTRY localops[] = {
 
   {
@@ -724,6 +771,39 @@ static OENTRY localops[] = {
     .intypes = "i.",
     .iopadr = (SUBR)WebSocketOpcode_initialise,
     .kopadr = (SUBR)WebSocketOpcode_process,
+    .aopadr = NULL
+  },
+
+  {
+    .opname = "websocketGet_k",
+    .dsblksiz = sizeof(WebsocketGet_k_S),
+    .thread = 3,
+    .outypes = "k",
+    .intypes = "S",
+    .iopadr = (SUBR)WebsocketGetArray_k_S_init,
+    .kopadr = (SUBR)WebsocketGetArray_k_S_perf,
+    .aopadr = NULL
+  },
+
+  {
+    .opname = "websocketGetArray_k",
+    .dsblksiz = sizeof(WebsocketGetArray_k_S),
+    .thread = 3,
+    .outypes = "k[]",
+    .intypes = "S",
+    .iopadr = (SUBR)WebsocketGetArray_k_S_init,
+    .kopadr = (SUBR)WebsocketGetArray_k_S_perf,
+    .aopadr = NULL
+  },
+
+  {
+    .opname = "websocketGet_S",
+    .dsblksiz = sizeof(WebsocketGet_S_S),
+    .thread = 3,
+    .outypes = "S",
+    .intypes = "S",
+    .iopadr = (SUBR)WebsocketGet_S_S_init,
+    .kopadr = (SUBR)WebsocketGet_S_S_perf,
     .aopadr = NULL
   }
 
