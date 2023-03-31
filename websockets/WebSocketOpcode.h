@@ -54,33 +54,25 @@ extern "C"
     int32_t WebSocketOpcode_process(CSOUND *csound, WebSocketOpcode *self);
 
 
-    typedef struct WebsocketGet_k_S
+    typedef struct Websocket2Get_k_S
     {
         OPDS h;
         MYFLT *output;
         STRINGDAT *input;
         WebSocket *webSocket;
         CSOUND *csound;
-    } WebsocketGet_k_S;
+    } Websocket2Get_k_S;
 
-    int32_t WSrawOpcode_k_S_init(CSOUND *csound, WebsocketGet_k_S *self);
-    int32_t WSrawOpcode_k_S_perf(CSOUND *csound, WebsocketGet_k_S *self);
-
-
-    typedef struct WebsocketGetArray_k_S
+    typedef struct Websocket2GetArray_k_S
     {
         OPDS h;
         ARRAYDAT *output;
         STRINGDAT *input;
         WebSocket *webSocket;
         CSOUND *csound;
-    } WebsocketGetArray_k_S;
+    } Websocket2GetArray_k_S;
 
-    int32_t WebsocketGetArray_k_S_init(CSOUND *csound, WebsocketGetArray_k_S *self);
-    int32_t WebsocketGetArray_k_S_perf(CSOUND *csound, WebsocketGetArray_k_S *self);
-
-
-    typedef struct WebsocketGet_S_S
+    typedef struct Websocket2Get_S_S
     {
         OPDS h;
         STRINGDAT *output;
@@ -88,10 +80,7 @@ extern "C"
         WebSocket *webSocket;
         int i;
         CSOUND *csound;
-    } WebsocketGet_S_S;
-
-    int32_t WebsocketGet_S_S_init(CSOUND *csound, WebsocketGet_S_S *self);
-    int32_t WebsocketGet_S_S_perf(CSOUND *csound, WebsocketGet_S_S *self);
+    } Websocket2Get_S_S;
 
 #ifdef __cplusplus
 }
