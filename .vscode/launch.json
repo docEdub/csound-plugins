@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "name": "(lldb) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "/usr/local/bin/csound",
+            "args": ["-odac", "ws-monitor.csd"],
+            "stopAtEntry": false,
+            "cwd": "/Users/andy/-/code/r+d/plugin.ui.e2e-rnd/packages/daw-csound/src",
+            "MIMode": "lldb"
+        }
+    ]
+}

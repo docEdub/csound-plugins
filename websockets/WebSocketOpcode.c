@@ -714,9 +714,114 @@ ArgumentType WebSocketOpcode_getArgumentType(CSOUND *csound, MYFLT *argument)
     return argumentType;
 }
 
+/*
+ ************************************************************************************************
+ */
+
+ struct Websocket2 {
+    Websocket2Opcode *parentOpcode;
+    struct lws_context *context;
+    struct lws *websocket;
+    struct lws_protocols protocol;
+    void *processThread;
+    unsigned char *messageBuffer;
+    struct lws_context_creation_info info;
+};
+
+static int32_t Websocket2_callback(
+    struct lws *websocket,
+    enum lws_callback_reasons reason,
+    void *user,
+    void *inputData,
+    size_t inputDataSize)
+{
+    Websocket2Opcode *p = lws_get_protocol(websocket)->user;
+    CSOUND *csound = p->csound;
+
+    csound->Message(csound, Str("%s"), "Websocket2_callback(...) called ...\n");
+    
+    return OK;
+}
+
+uintptr_t Websocket2_processThread(void *vp)
+{
+    Websocket2Opcode *p = vp;
+
+    // while (p->isRunning == 1) {
+
+      // https://libwebsockets.org/lws-api-doc-main/html/group__service.html#gaf95bd0c663d6516a0c80047d9b1167a8
+      //
+      // Service any pending websocket activity.
+      //  context:  Websocket context
+      //  timeout_ms:  Set to 0; ignored; for backward compatibility
+      //
+      lws_service(p->websocket->context, 0);
+
+      // https://libwebsockets.org/lws-api-doc-main/html/group__callback-when-writeable.html#gabbe4655c7eeb3eb1671b2323ec6b3107
+      //
+      // Request a callback for all connections using the given protocol when it becomes possible to write to each socket without blocking in turn.
+      //  context:  Websocket context
+      //  protocol:  Protocol whose connections will get callbacks
+      lws_callback_on_writable_all_protocol(p->websocket->context, &p->websocket->protocol);
+    // }
+
+    return 0;
+}
+
+int32_t Websocket2_deinitializeWebsocket(CSOUND *csound, void *vp)
+{
+    Websocket2Opcode *p = vp;
+    Websocket2 *ws = p->websocket;
+
+    csound->JoinThread(ws->processThread);
+
+    lws_cancel_service(ws->context);
+    lws_context_destroy(ws->context);
+    
+    return OK;
+}
+
+void Websocket2_initializeWebsocket(CSOUND *csound, void *vp)
+{
+    csound->Message(csound, Str("%s"), "Websocket2_initializeWebsocket(...) called ...\n");
+    
+    Websocket2Opcode *p = vp;
+    Websocket2 *ws = p->websocket;
+    ws->protocol.callback = Websocket2_callback;
+    ws->protocol.id = 0;
+    ws->protocol.name = "websocket";
+    ws->protocol.per_session_data_size = sizeof(Websocket2 *);
+    ws->protocol.user = p;
+
+    ws->info.port = *p->port;
+    ws->info.protocols = &ws->protocol;
+    ws->info.gid = -1;
+    ws->info.uid = -1;
+
+    csound->Message(csound, Str("%s"), "Websocket2_initializeWebsocket(...) setting up lws ...\n");
+    lws_set_log_level(LLL_DEBUG, NULL);
+    ws->context = lws_create_context(&ws->info);
+    ws->messageBuffer = csound->Calloc(
+        csound,
+        LWS_SEND_BUFFER_PRE_PADDING +
+        (sizeof(char) * writeBufferBytesCount) +
+        LWS_SEND_BUFFER_POST_PADDING
+    );
+    csound->Message(csound, Str("%s"), "Websocket2_initializeWebsocket(...) setting up lws - done\n");
+    if (UNLIKELY(ws->context == NULL)) {
+        csound->Die(csound, "%s", Str("websocket: could not initialize websocket. Exiting"));
+    }
+
+    ws->processThread = csound->CreateThread(Websocket2_processThread, p);
+    csound->RegisterDeinitCallback(csound, p, Websocket2_deinitializeWebsocket);
+
+    csound->Message(csound, Str("%s"), "Websocket2_initializeWebsocket(...) - done\n");
+}
+
 int32_t Websocket2Get_k_S_init(CSOUND *csound, Websocket2Get_k_S *p)
 {
     p->csound = csound;
+    Websocket2_initializeWebsocket(csound, p);
     return OK;
 }
 
@@ -729,6 +834,7 @@ int32_t Websocket2Get_k_S_perf(CSOUND *csound, Websocket2Get_k_S *p) {
 int32_t Websocket2GetArray_k_S_init(CSOUND *csound, Websocket2GetArray_k_S *p)
 {
     p->csound = csound;
+    Websocket2_initializeWebsocket(csound, p);
     return OK;
 }
 
@@ -742,9 +848,15 @@ int32_t Websocket2GetArray_k_S_perf(CSOUND *csound, Websocket2GetArray_k_S *p) {
 
 int32_t Websocket2Get_S_S_init(CSOUND *csound, Websocket2Get_S_S *p)
 {
+    csound->Message(csound, Str("%s"), "Websocket2Get_S_S_init(...) called ...\n");
+
     p->csound = csound;
     p->output->data = csound->Calloc(csound, 11);
     p->i = 0;
+    Websocket2_initializeWebsocket(csound, p);
+
+    csound->Message(csound, Str("%s"), "Websocket2Get_S_S_init(...) - done\n");
+
     return OK;
 }
 
@@ -779,7 +891,7 @@ static OENTRY localops[] = {
     .dsblksiz = sizeof(Websocket2Get_k_S),
     .thread = 3,
     .outypes = "k",
-    .intypes = "S",
+    .intypes = "Sc",
     .iopadr = (SUBR)Websocket2Get_k_S_init,
     .kopadr = (SUBR)Websocket2Get_k_S_perf,
     .aopadr = NULL
@@ -790,7 +902,7 @@ static OENTRY localops[] = {
     .dsblksiz = sizeof(Websocket2GetArray_k_S),
     .thread = 3,
     .outypes = "k[]",
-    .intypes = "S",
+    .intypes = "Sc",
     .iopadr = (SUBR)Websocket2GetArray_k_S_init,
     .kopadr = (SUBR)Websocket2GetArray_k_S_perf,
     .aopadr = NULL
@@ -801,7 +913,7 @@ static OENTRY localops[] = {
     .dsblksiz = sizeof(Websocket2Get_S_S),
     .thread = 3,
     .outypes = "S",
-    .intypes = "S",
+    .intypes = "Sc",
     .iopadr = (SUBR)Websocket2Get_S_S_init,
     .kopadr = (SUBR)Websocket2Get_S_S_perf,
     .aopadr = NULL
