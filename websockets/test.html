@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head>
+    <title>Websocket test</title>
+</head>
+<body>
+ <script>
+
+var websocketOut = new WebSocket("ws://127.0.0.1:12345", "test");
+setInterval(() => {
+    if (websocketOut.readyState == WebSocket.OPEN) {
+        websocketOut.send("test 1");
+    }
+    else {
+        console.debug(`websocket "test" not connected`);
+    }
+}, 1000);
+
+</script>
+</body>
+</html>
