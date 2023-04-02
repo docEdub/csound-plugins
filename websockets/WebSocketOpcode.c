@@ -740,8 +740,7 @@ static int32_t Websocket2_callback(
     }
 
     const struct lws_protocols *protocol = lws_get_protocol(websocket);
-    const struct lws_protocols *protocol2 = lws_get_protocol(websocket);
-    Websocket2Opcode *p = protocol2->user;
+    Websocket2Opcode *p = protocol->user;
     CSOUND *csound = p->csound;
     
     return OK;
@@ -751,7 +750,8 @@ uintptr_t Websocket2_processThread(void *vp)
 {
     Websocket2Opcode *p = vp;
 
-    // while (p->isRunning == 1) {
+    p->isRunning = true;
+    while (p->isRunning) {
 
       // https://libwebsockets.org/lws-api-doc-main/html/group__service.html#gaf95bd0c663d6516a0c80047d9b1167a8
       //
@@ -767,7 +767,7 @@ uintptr_t Websocket2_processThread(void *vp)
       //  context:  Websocket context
       //  protocol:  Protocol whose connections will get callbacks
       lws_callback_on_writable_all_protocol(p->websocket->context, &p->websocket->protocols[0]);
-    // }
+    }
 
     return 0;
 }
@@ -775,13 +775,12 @@ uintptr_t Websocket2_processThread(void *vp)
 int32_t Websocket2_deinitializeWebsocket(CSOUND *csound, void *vp)
 {
     Websocket2Opcode *p = vp;
+    p->isRunning = false;
+
     Websocket2 *ws = p->websocket;
-
     csound->JoinThread(ws->processThread);
-
     lws_cancel_service(ws->context);
     lws_context_destroy(ws->context);
-
     csound->Free(csound, ws->messageBuffer);
     csound->Free(csound, ws->protocols);
     csound->Free(csound, ws);
@@ -799,11 +798,11 @@ void Websocket2_initializeWebsocket(CSOUND *csound, void *vp)
     // Allocate 2 protocols; the actual protocol and a null protocol at the end
     // (idk why, but this is how the original websocket opcode does it).
     ws->protocols = csound->Calloc(csound, sizeof(struct lws_protocols) * 2);
-    memset(ws->protocols, 0, sizeof(struct lws_protocols) * 2);
+    // memset(ws->protocols, 0, sizeof(struct lws_protocols) * 2);
     
     ws->protocols[0].callback = Websocket2_callback;
     ws->protocols[0].id = 1000;
-    ws->protocols[0].name = "test";
+    ws->protocols[0].name = p->channelName->data;
     ws->protocols[0].per_session_data_size = sizeof(Websocket2Opcode *);
     ws->protocols[0].user = p;
 

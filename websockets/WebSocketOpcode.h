@@ -64,6 +64,7 @@ extern "C"
         MYFLT *port;
         CSOUND *csound;
         Websocket2 *websocket;
+        bool isRunning;
     } Websocket2Opcode;
 
     typedef struct Websocket2Get_k_S
@@ -74,6 +75,7 @@ extern "C"
         MYFLT *port;
         CSOUND *csound;
         Websocket2 *webSocket;
+        bool isRunning;
     } Websocket2Get_k_S;
 
     typedef struct Websocket2GetArray_k_S
@@ -84,6 +86,7 @@ extern "C"
         MYFLT *port;
         CSOUND *csound;
         Websocket2 *webSocket;
+        bool isRunning;
     } Websocket2GetArray_k_S;
 
     typedef struct Websocket2Get_S_S
@@ -94,6 +97,7 @@ extern "C"
         MYFLT *port;
         CSOUND *csound;
         Websocket2 *webSocket;
+        bool isRunning;
         int i;
     } Websocket2Get_S_S;
 
