@@ -6,7 +6,7 @@
             "request": "launch",
             "cwd": "${workspaceFolder}",
             "program": "/usr/local/bin/csound",
-            "args": ["-odac", "websockets/test.csd"],
+            "args": ["-odac", "websocket2/test.csd"],
             "stopAtEntry": false,
             "MIMode": "lldb",
             "preLaunchTask": "Build"

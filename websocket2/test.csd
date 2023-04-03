@@ -43,7 +43,7 @@ endop
 
 instr 3
     SValue init ""
-    SValue = websocket2Get_S("test", 12345)
+    SValue = WSget("test", 12345)
 
     printsk(SValue)
     printsk("\n")

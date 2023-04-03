@@ -53,54 +53,6 @@ extern "C"
     int32_t WebSocketOpcode_initialise(CSOUND *csound, WebSocketOpcode *self);
     int32_t WebSocketOpcode_process(CSOUND *csound, WebSocketOpcode *self);
 
-
-    typedef struct Websocket2 Websocket2;
-
-    typedef struct Websocket2Opcode
-    {
-        OPDS h;
-        void *output;
-        STRINGDAT *channelName;
-        MYFLT *port;
-        CSOUND *csound;
-        Websocket2 *websocket;
-        bool isRunning;
-    } Websocket2Opcode;
-
-    typedef struct Websocket2Get_k_S
-    {
-        OPDS h;
-        MYFLT *output;
-        STRINGDAT *channelName;
-        MYFLT *port;
-        CSOUND *csound;
-        Websocket2 *webSocket;
-        bool isRunning;
-    } Websocket2Get_k_S;
-
-    typedef struct Websocket2GetArray_k_S
-    {
-        OPDS h;
-        ARRAYDAT *output;
-        STRINGDAT *channelName;
-        MYFLT *port;
-        CSOUND *csound;
-        Websocket2 *webSocket;
-        bool isRunning;
-    } Websocket2GetArray_k_S;
-
-    typedef struct Websocket2Get_S_S
-    {
-        OPDS h;
-        STRINGDAT *output;
-        STRINGDAT *channelName;
-        MYFLT *port;
-        CSOUND *csound;
-        Websocket2 *webSocket;
-        bool isRunning;
-        int i;
-    } Websocket2Get_S_S;
-
 #ifdef __cplusplus
 }
 #endif
