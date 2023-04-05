@@ -19,7 +19,6 @@ typedef struct WSget
     MYFLT *port;
     CSOUND *csound;
     Websocket *websocket;
-    bool isRunning;
     int i;
 } WSget;
 

@@ -11,6 +11,7 @@ static const size_t WriteBufferBytesCount = 2048;
     void *processThread;
     unsigned char *messageBuffer;
     struct lws_context_creation_info info;
+    bool isRunning;
 };
 
 static int32_t WS_callback(
@@ -34,9 +35,9 @@ static int32_t WS_callback(
 uintptr_t WS_processThread(void *vp)
 {
     WSget *p = vp;
-    p->isRunning = true;
+    p->websocket->isRunning = true;
 
-    while (p->isRunning) {
+    while (p->websocket->isRunning) {
 
       // https://libwebsockets.org/lws-api-doc-main/html/group__service.html#gaf95bd0c663d6516a0c80047d9b1167a8
       //
@@ -60,7 +61,7 @@ uintptr_t WS_processThread(void *vp)
 int32_t WS_deinitializeWebsocket(CSOUND *csound, void *vp)
 {
     WSget *p = vp;
-    p->isRunning = false;
+    p->websocket->isRunning = false;
 
     Websocket *ws = p->websocket;
     csound->JoinThread(ws->processThread);
@@ -77,10 +78,11 @@ Websocket *WS_createWebsocket(CSOUND *csound, const char *channelName, MYFLT por
 {
     Websocket *ws = csound->Calloc(csound, sizeof(Websocket));
 
-    // Allocate 2 protocols; the actual protocol and a null protocol at the end
-    // (idk why, but this is how the original websocket opcode does it).
+    // Allocate 2 protocols; the actual protocol, and a null protocol at the end
+    // (idk why, but this is how the original websocket opcode does it and the call to lws_service sometimes crashes
+    // without it).
     ws->protocols = csound->Calloc(csound, sizeof(struct lws_protocols) * 2);
-    // memset(ws->protocols, 0, sizeof(struct lws_protocols) * 2);
+    memset(ws->protocols, 0, sizeof(struct lws_protocols) * 2);
     
     ws->protocols[0].callback = WS_callback;
     ws->protocols[0].id = 1000;
