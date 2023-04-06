@@ -7,10 +7,12 @@
  <script>
 
 var websocketOut = new WebSocket("ws://127.0.0.1:12345", "test");
+
+let i = 1;
 setInterval(() => {
     if (websocketOut.readyState == WebSocket.OPEN) {
         console.debug(`sending to "test" ...`);
-        websocketOut.send("test 1");
+        websocketOut.send(`test ${i++}`);
     }
     else {
         console.debug(`websocket "test" not connected`);
