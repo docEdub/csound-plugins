@@ -12,7 +12,9 @@ let i = 1;
 setInterval(() => {
     if (websocketOut.readyState == WebSocket.OPEN) {
         console.debug(`sending to "test" ...`);
-        websocketOut.send(`test ${i++}`);
+        for (let j = 0; j < 100; j++) {
+            websocketOut.send(`test ${i++}`);
+        }
     }
     else {
         console.debug(`websocket "test" not connected`);

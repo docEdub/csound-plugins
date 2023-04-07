@@ -2,7 +2,7 @@
 
 #include <libwebsockets.h>
 
-static const size_t WebsocketMessageCount = 1024;
+static const size_t WebsocketMessageCountMax = 10;
 
  struct Websocket {
     struct lws_context *context;
@@ -10,7 +10,8 @@ static const size_t WebsocketMessageCount = 1024;
     struct lws_protocols *protocols;
     void *processThread;
     struct lws_context_creation_info info;
-    STRINGDAT messages[WebsocketMessageCount];
+    void *messageMutex;
+    STRINGDAT messages[WebsocketMessageCountMax];
     int messageCount;
     bool isRunning;
 };
@@ -32,10 +33,16 @@ static int32_t WS_callback(
     CSOUND *csound = p->csound;
     
     if (inputData && 0 < inputDataSize) {
-        const int messageIndex = ws->messageCount % WebsocketMessageCount;
+        csound->LockMutex(ws->messageMutex);
+        while (ws->messageCount == WebsocketMessageCountMax) {
+            csound->UnlockMutex(ws->messageMutex);
+            csound->Sleep(0);
+            csound->LockMutex(ws->messageMutex);
+        }
+
         const int messageSize = inputDataSize + 1;
 
-        STRINGDAT *s = &ws->messages[messageIndex];
+        STRINGDAT *s = &ws->messages[ws->messageCount];
         if (0 < s->size && s->size < messageSize) {
             csound->Free(csound, s->data);
             s->size = 0;
@@ -46,11 +53,14 @@ static int32_t WS_callback(
         }
         memcpy(s->data, inputData, inputDataSize);
         s->data[inputDataSize] = '\0';
-        csound->Message(csound, Str("%s\n"), s->data);
 
         ws->messageCount++;
-        
-        lws_cancel_service(ws->context);
+
+        if (ws->messageCount == WebsocketMessageCountMax) {
+            lws_cancel_service(ws->context);
+        }
+
+        csound->UnlockMutex(ws->messageMutex);
     }
 
     return OK;
@@ -63,22 +73,14 @@ uintptr_t WS_processThread(void *vp)
     ws->isRunning = true;
 
     while (p->websocket->isRunning) {
-        ws->messageCount = 0;
-
-        // https://libwebsockets.org/lws-api-doc-main/html/group__service.html#gaf95bd0c663d6516a0c80047d9b1167a8
-        //
-        // Service any pending websocket activity.
-        //  context:  Websocket context
-        //  timeout_ms:  Set to 0; ignored; for backward compatibility
-        //
-        int returnValue = lws_service(p->websocket->context, 0);
-
-        // https://libwebsockets.org/lws-api-doc-main/html/group__callback-when-writeable.html#gabbe4655c7eeb3eb1671b2323ec6b3107
-        //
-        // Request a callback for all connections using the given protocol when it becomes possible to write to each socket without blocking in turn.
-        //  context:  Websocket context
-        //  protocol:  Protocol whose connections will get callbacks
-        lws_callback_on_writable_all_protocol(p->websocket->context, &p->websocket->protocols[0]);
+        p->csound->LockMutex(ws->messageMutex);
+        if (ws->messageCount == 0) {
+            p->csound->UnlockMutex(ws->messageMutex);
+            lws_service(p->websocket->context, 0);
+        }
+        else {
+            p->csound->UnlockMutex(ws->messageMutex);
+        }
     }
 
     return 0;
@@ -90,7 +92,7 @@ int32_t WS_destroyWebsocket(CSOUND *csound, void *vp)
     Websocket *ws = p->websocket;
     ws->isRunning = false;
 
-    for (int i = 0; i < WebsocketMessageCount; i++) {
+    for (int i = 0; i < WebsocketMessageCountMax; i++) {
         const STRINGDAT *s = &ws->messages[i];
         if (s->data && 0 < s->size) {
             csound->Free(csound, s->data);
@@ -103,6 +105,7 @@ int32_t WS_destroyWebsocket(CSOUND *csound, void *vp)
     lws_cancel_service(ws->context);
     lws_context_destroy(ws->context);
 
+    csound->DestroyMutex(ws->messageMutex);
     csound->Free(csound, ws->protocols);
     csound->Free(csound, ws);
 
@@ -136,7 +139,10 @@ Websocket *WS_createWebsocket(CSOUND *csound, const char *channelName, MYFLT por
         csound->Die(csound, "%s", Str("websocket: could not initialize websocket. Exiting"));
     }
 
+    ws->messageCount = 0;
+    ws->messageMutex = csound->Create_Mutex(0);
     ws->processThread = csound->CreateThread(WS_processThread, p);
+
     csound->RegisterDeinitCallback(csound, p, WS_destroyWebsocket);
 
     return ws;
@@ -158,11 +164,19 @@ int32_t WSget_perf(CSOUND *csound, WSget *p) {
       memset(p->output->data, 0, 11);
     }
     p->i++;
-    for (int j = 0; j < p->i; ++j) {
-        p->output->data[j] = '.';
-    }
-    p->output->size = p->i;
+    // for (int j = 0; j < p->i; ++j) {
+    //     p->output->data[j] = '.';
+    // }
+    // p->output->size = p->i;
     p->i %= 10;
+
+    csound->LockMutex(p->websocket->messageMutex);
+    for (int i = 0; i < p->websocket->messageCount; i++) {
+        csound->Message(csound, Str("%s\n"), p->websocket->messages[i].data);
+    }
+    p->websocket->messageCount = 0;
+    csound->UnlockMutex(p->websocket->messageMutex);
+
     return OK;
 }
 

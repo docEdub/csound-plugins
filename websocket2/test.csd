@@ -6,7 +6,7 @@
 
 nchnls = 1
 sr = 48000
-kr = 1
+kr = 1000
 0dbfs = 1
 
 
@@ -45,8 +45,8 @@ instr 3
     SValue init ""
     SValue = WSget("test", 12345)
 
-    printsk(SValue)
-    printsk("\n")
+;    printsk(SValue)
+;    printsk("\n")
 endin
 
 </CsInstruments>
