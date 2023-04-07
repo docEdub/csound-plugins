@@ -2,6 +2,12 @@
 
 #include <libwebsockets.h>
 
+// TODO: Try getting the buffer working with an odd sized circular buffer.
+// - Idea is to write to the circular buffer twice on each websocket message received.
+//      - 1st write is the actual pointer to the buffer.
+//      - 2nd write is a null pointer. If it fails then we know the buffer is full.
+//          - If buffer is full, set a flag and wait for WSget_perf to clear it.
+
 static const size_t WebsocketMessageCountMax = 10;
 
  struct Websocket {
@@ -10,9 +16,12 @@ static const size_t WebsocketMessageCountMax = 10;
     struct lws_protocols *protocols;
     void *processThread;
     struct lws_context_creation_info info;
-    void *messageMutex;
-    STRINGDAT messages[WebsocketMessageCountMax];
-    int messageCount;
+    void *messageBuffer;
+    STRINGDAT messages[2 * WebsocketMessageCountMax];
+    int messageIndex;
+    int messageIndex2;
+    bool isMessageBufferFull;
+    bool wasMessageBufferFull;
     bool isRunning;
 };
 
@@ -33,16 +42,13 @@ static int32_t WS_callback(
     CSOUND *csound = p->csound;
     
     if (inputData && 0 < inputDataSize) {
-        csound->LockMutex(ws->messageMutex);
-        while (ws->messageCount == WebsocketMessageCountMax) {
-            csound->UnlockMutex(ws->messageMutex);
+        while (ws->isMessageBufferFull) {
             csound->Sleep(0);
-            csound->LockMutex(ws->messageMutex);
         }
 
         const int messageSize = inputDataSize + 1;
 
-        STRINGDAT *s = &ws->messages[ws->messageCount];
+        STRINGDAT *s = &ws->messages[ws->messageIndex];
         if (0 < s->size && s->size < messageSize) {
             csound->Free(csound, s->data);
             s->size = 0;
@@ -54,13 +60,27 @@ static int32_t WS_callback(
         memcpy(s->data, inputData, inputDataSize);
         s->data[inputDataSize] = '\0';
 
-        ws->messageCount++;
-
-        if (ws->messageCount == WebsocketMessageCountMax) {
-            lws_cancel_service(ws->context);
+        if (ws->wasMessageBufferFull) {
+            // If the message buffer was full then the 2nd message in the even/odd pair wasn't written, yet.
+            // Write it now so we're back on the correct even step in the circular buffer.
+            if (!csound->WriteCircularBuffer(csound, ws->messageBuffer, &ws->messageIndex, 1)) {
+                csound->Message(csound, Str("%s\n"), "Warning: Websocket failed to get back on even step");
+            }
+            ws->wasMessageBufferFull = false;
+        }
+        const int n = csound->WriteCircularBuffer(csound, ws->messageBuffer, &ws->messageIndex, 2);
+        if (n != 2) {
+            ws->isMessageBufferFull = true;
+            ws->wasMessageBufferFull = true;
         }
 
-        csound->UnlockMutex(ws->messageMutex);
+        ws->messageIndex += 2;
+        ws->messageIndex %= 2 * WebsocketMessageCountMax;
+        ws->messageIndex2 = ws->messageIndex + 1;
+
+        if (ws->isMessageBufferFull == WebsocketMessageCountMax) {
+            lws_cancel_service(ws->context);
+        }
     }
 
     return OK;
@@ -73,13 +93,8 @@ uintptr_t WS_processThread(void *vp)
     ws->isRunning = true;
 
     while (p->websocket->isRunning) {
-        p->csound->LockMutex(ws->messageMutex);
-        if (ws->messageCount == 0) {
-            p->csound->UnlockMutex(ws->messageMutex);
+        if (!ws->isMessageBufferFull) {
             lws_service(p->websocket->context, 0);
-        }
-        else {
-            p->csound->UnlockMutex(ws->messageMutex);
         }
     }
 
@@ -98,14 +113,14 @@ int32_t WS_destroyWebsocket(CSOUND *csound, void *vp)
             csound->Free(csound, s->data);
         }
     }
-    ws->messageCount = 0;
+    ws->messageIndex = 0;
 
     csound->JoinThread(ws->processThread);
 
     lws_cancel_service(ws->context);
     lws_context_destroy(ws->context);
 
-    csound->DestroyMutex(ws->messageMutex);
+    csound->DestroyCircularBuffer(csound, ws->messageBuffer);
     csound->Free(csound, ws->protocols);
     csound->Free(csound, ws);
 
@@ -139,8 +154,12 @@ Websocket *WS_createWebsocket(CSOUND *csound, const char *channelName, MYFLT por
         csound->Die(csound, "%s", Str("websocket: could not initialize websocket. Exiting"));
     }
 
-    ws->messageCount = 0;
-    ws->messageMutex = csound->Create_Mutex(0);
+    ws->messageIndex = 0;
+    ws->messageIndex2 = 0;
+    ws->isMessageBufferFull = false;
+    ws->wasMessageBufferFull = false;
+    memset(ws->messages, 0, sizeof(STRINGDAT*) * 2 * WebsocketMessageCountMax);
+    ws->messageBuffer = csound->CreateCircularBuffer(csound, sizeof(int) * WebsocketMessageCountMax, sizeof(int));
     ws->processThread = csound->CreateThread(WS_processThread, p);
 
     csound->RegisterDeinitCallback(csound, p, WS_destroyWebsocket);
@@ -170,12 +189,22 @@ int32_t WSget_perf(CSOUND *csound, WSget *p) {
     // p->output->size = p->i;
     p->i %= 10;
 
-    csound->LockMutex(p->websocket->messageMutex);
-    for (int i = 0; i < p->websocket->messageCount; i++) {
-        csound->Message(csound, Str("%s\n"), p->websocket->messages[i].data);
+    int32_t n = 0;
+    int messageIndex[2];
+    while (true) {
+        n = csound->ReadCircularBuffer(csound, p->websocket->messageBuffer, messageIndex, 2);
+        if (n != 0) {
+            int i = messageIndex[0];
+            if (i % 2) {
+                i--;
+            }
+            csound->Message(csound, Str("[%d]: %s\n"), i, p->websocket->messages[i].data);
+        }
+        else {
+            break;
+        }
     }
-    p->websocket->messageCount = 0;
-    csound->UnlockMutex(p->websocket->messageMutex);
+    p->websocket->isMessageBufferFull = false;
 
     return OK;
 }
