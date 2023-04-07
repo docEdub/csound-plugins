@@ -49,6 +49,8 @@ static int32_t WS_callback(
         csound->Message(csound, Str("%s\n"), s->data);
 
         ws->messageCount++;
+        
+        lws_cancel_service(ws->context);
     }
 
     return OK;
