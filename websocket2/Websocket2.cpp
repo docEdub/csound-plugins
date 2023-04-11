@@ -2,7 +2,7 @@
 
 #include <libwebsockets.h>
 
-static const size_t WebsocketMessageCountMax = 10;
+static const size_t WebsocketMessageCountMax = 1024;
 
  struct Websocket {
     struct lws_context *context;
@@ -28,7 +28,7 @@ static int32_t WS_callback(
     }
 
     const struct lws_protocols *protocol = lws_get_protocol(websocket);
-    WSget *p = protocol->user;
+    WSget *p = (WSget*) protocol->user;
     Websocket *ws = p->websocket;
     CSOUND *csound = p->csound;
     
@@ -49,7 +49,7 @@ static int32_t WS_callback(
         }
         if (s->size == 0) {
             s->size = sizeof(char) * messageSize;
-            s->data = csound->Calloc(csound, s->size);
+            s->data = (char*) csound->Calloc(csound, s->size);
         }
         memcpy(s->data, inputData, inputDataSize);
         s->data[inputDataSize] = '\0';
@@ -68,7 +68,7 @@ static int32_t WS_callback(
 
 uintptr_t WS_processThread(void *vp)
 {
-    WSget *p = vp;
+    WSget *p = (WSget*) vp;
     Websocket *ws = p->websocket;
     ws->isRunning = true;
 
@@ -88,7 +88,7 @@ uintptr_t WS_processThread(void *vp)
 
 int32_t WS_destroyWebsocket(CSOUND *csound, void *vp)
 {
-    WSget *p = vp;
+    WSget *p = (WSget*) vp;
     Websocket *ws = p->websocket;
     ws->isRunning = false;
 
@@ -114,12 +114,12 @@ int32_t WS_destroyWebsocket(CSOUND *csound, void *vp)
 
 Websocket *WS_createWebsocket(CSOUND *csound, const char *channelName, MYFLT port, WSget *p)
 {
-    Websocket *ws = csound->Calloc(csound, sizeof(Websocket));
+    Websocket *ws = (Websocket*) csound->Calloc(csound, sizeof(Websocket));
 
     // Allocate 2 protocols; the actual protocol, and a null protocol at the end
     // (idk why, but this is how the original websocket opcode does it and the call to lws_service sometimes crashes
     // without it).
-    ws->protocols = csound->Calloc(csound, sizeof(struct lws_protocols) * 2);
+    ws->protocols = (lws_protocols*) csound->Calloc(csound, sizeof(struct lws_protocols) * 2);
     memset(ws->protocols, 0, sizeof(struct lws_protocols) * 2);
     
     ws->protocols[0].callback = WS_callback;
@@ -151,7 +151,7 @@ Websocket *WS_createWebsocket(CSOUND *csound, const char *channelName, MYFLT por
 int32_t WSget_init(CSOUND *csound, WSget *p)
 {
     p->csound = csound;
-    p->output->data = csound->Calloc(csound, 11);
+    p->output->data = (char*) csound->Calloc(csound, 11);
     p->i = 0;
 
     p->websocket = WS_createWebsocket(csound, p->channelName->data, *p->port, p);

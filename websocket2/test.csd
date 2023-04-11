@@ -6,7 +6,7 @@
 
 nchnls = 1
 sr = 48000
-kr = 1000
+kr = 1
 0dbfs = 1
 
 
