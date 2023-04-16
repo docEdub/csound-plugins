@@ -2,17 +2,18 @@
 
 #include <libwebsockets.h>
 
-static const size_t WebsocketMessageCountMax = 1024;
+static const int WebsocketBufferCount = 1024;
+static const int WebsocketInitialMessageSize = 1024;
 
- struct Websocket {
+struct Websocket {
     struct lws_context *context;
     struct lws *websocket;
     struct lws_protocols *protocols;
     void *processThread;
     struct lws_context_creation_info info;
-    void *messageMutex;
-    STRINGDAT messages[WebsocketMessageCountMax];
-    int messageCount;
+    STRINGDAT messages[WebsocketBufferCount];
+    int messageIndex;
+    void *messageIndexBuffer;
     bool isRunning;
 };
 
@@ -31,18 +32,12 @@ static int32_t WS_callback(
     WSget *p = (WSget*) protocol->user;
     Websocket *ws = p->websocket;
     CSOUND *csound = p->csound;
-    
-    if (inputData && 0 < inputDataSize) {
-        csound->LockMutex(ws->messageMutex);
-        while (ws->messageCount == WebsocketMessageCountMax) {
-            csound->UnlockMutex(ws->messageMutex);
-            csound->Sleep(0);
-            csound->LockMutex(ws->messageMutex);
-        }
 
+    if (inputData && 0 < inputDataSize) {
         const int messageSize = inputDataSize + 1;
 
-        STRINGDAT *s = &ws->messages[ws->messageCount];
+        auto s = &ws->messages[ws->messageIndex];
+
         if (0 < s->size && s->size < messageSize) {
             csound->Free(csound, s->data);
             s->size = 0;
@@ -54,13 +49,16 @@ static int32_t WS_callback(
         memcpy(s->data, inputData, inputDataSize);
         s->data[inputDataSize] = '\0';
 
-        ws->messageCount++;
-
-        if (ws->messageCount == WebsocketMessageCountMax) {
-            lws_cancel_service(ws->context);
+        while (true) {
+            const auto written = csound->WriteCircularBuffer(csound, ws->messageIndexBuffer, &ws->messageIndex, 1);
+            if (written != 0) {
+                break;
+            }
+            csound->Sleep(1);
         }
 
-        csound->UnlockMutex(ws->messageMutex);
+        ws->messageIndex++;
+        ws->messageIndex %= WebsocketBufferCount;
     }
 
     return OK;
@@ -73,14 +71,7 @@ uintptr_t WS_processThread(void *vp)
     ws->isRunning = true;
 
     while (p->websocket->isRunning) {
-        p->csound->LockMutex(ws->messageMutex);
-        if (ws->messageCount == 0) {
-            p->csound->UnlockMutex(ws->messageMutex);
-            lws_service(p->websocket->context, 0);
-        }
-        else {
-            p->csound->UnlockMutex(ws->messageMutex);
-        }
+        lws_service(p->websocket->context, 0);
     }
 
     return 0;
@@ -92,20 +83,19 @@ int32_t WS_destroyWebsocket(CSOUND *csound, void *vp)
     Websocket *ws = p->websocket;
     ws->isRunning = false;
 
-    for (int i = 0; i < WebsocketMessageCountMax; i++) {
+    for (int i = 0; i < WebsocketBufferCount; i++) {
         const STRINGDAT *s = &ws->messages[i];
         if (s->data && 0 < s->size) {
             csound->Free(csound, s->data);
         }
     }
-    ws->messageCount = 0;
 
     csound->JoinThread(ws->processThread);
 
     lws_cancel_service(ws->context);
     lws_context_destroy(ws->context);
 
-    csound->DestroyMutex(ws->messageMutex);
+    csound->DestroyCircularBuffer(csound, ws->messageIndexBuffer);
     csound->Free(csound, ws->protocols);
     csound->Free(csound, ws);
 
@@ -139,8 +129,14 @@ Websocket *WS_createWebsocket(CSOUND *csound, const char *channelName, MYFLT por
         csound->Die(csound, "%s", Str("websocket: could not initialize websocket. Exiting"));
     }
 
-    ws->messageCount = 0;
-    ws->messageMutex = csound->Create_Mutex(0);
+    for (int i = 0; i < WebsocketBufferCount; i++) {
+        auto s = &ws->messages[i];
+        s->size = WebsocketInitialMessageSize + 1;
+        s->data = (char*) csound->Calloc(csound, s->size);
+    }
+
+    ws->messageIndex = 0;
+    ws->messageIndexBuffer = csound->CreateCircularBuffer(csound, WebsocketBufferCount, sizeof(int));
     ws->processThread = csound->CreateThread(WS_processThread, p);
 
     csound->RegisterDeinitCallback(csound, p, WS_destroyWebsocket);
@@ -170,12 +166,18 @@ int32_t WSget_perf(CSOUND *csound, WSget *p) {
     // p->output->size = p->i;
     p->i %= 10;
 
-    csound->LockMutex(p->websocket->messageMutex);
-    for (int i = 0; i < p->websocket->messageCount; i++) {
-        csound->Message(csound, Str("%s\n"), p->websocket->messages[i].data);
+    const auto ws = p->websocket;
+
+    while (true) {
+        int messageIndex = 0;
+        const auto read = csound->ReadCircularBuffer(csound, ws->messageIndexBuffer, &messageIndex, 1);
+        if (read == 1) {
+            csound->Message(csound, Str("%s\n"), ws->messages[messageIndex].data);
+        }
+        else {
+            break;
+        }
     }
-    p->websocket->messageCount = 0;
-    csound->UnlockMutex(p->websocket->messageMutex);
 
     return OK;
 }
