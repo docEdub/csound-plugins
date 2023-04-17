@@ -5,6 +5,11 @@
 static const int WebsocketBufferCount = 1024;
 static const int WebsocketInitialMessageSize = 1024;
 
+enum {
+    StringType = 1,
+    Float64ArrayType = 2
+};
+
 struct Websocket {
     struct lws_context *context;
     struct lws *websocket;
@@ -36,7 +41,7 @@ static int32_t WS_callback(
     if (inputData && 0 < inputDataSize) {
         const int messageSize = inputDataSize + 1;
 
-        auto s = &ws->messages[ws->messageIndex];
+        STRINGDAT *s = &ws->messages[ws->messageIndex];
 
         if (0 < s->size && s->size < messageSize) {
             csound->Free(csound, s->data);
@@ -50,7 +55,7 @@ static int32_t WS_callback(
         s->data[inputDataSize] = '\0';
 
         while (true) {
-            const auto written = csound->WriteCircularBuffer(csound, ws->messageIndexBuffer, &ws->messageIndex, 1);
+            const int written = csound->WriteCircularBuffer(csound, ws->messageIndexBuffer, &ws->messageIndex, 1);
             if (written != 0) {
                 break;
             }
@@ -70,8 +75,8 @@ uintptr_t WS_processThread(void *vp)
     Websocket *ws = p->websocket;
     ws->isRunning = true;
 
-    while (p->websocket->isRunning) {
-        lws_service(p->websocket->context, 0);
+    while (ws->isRunning) {
+        lws_service(ws->context, 0);
     }
 
     return 0;
@@ -130,7 +135,7 @@ Websocket *WS_createWebsocket(CSOUND *csound, const char *channelName, MYFLT por
     }
 
     for (int i = 0; i < WebsocketBufferCount; i++) {
-        auto s = &ws->messages[i];
+        STRINGDAT *s = &ws->messages[i];
         s->size = WebsocketInitialMessageSize + 1;
         s->data = (char*) csound->Calloc(csound, s->size);
     }
@@ -150,7 +155,7 @@ int32_t WSget_init(CSOUND *csound, WSget *p)
     p->output->data = (char*) csound->Calloc(csound, 11);
     p->i = 0;
 
-    p->websocket = WS_createWebsocket(csound, p->channelName->data, *p->port, p);
+    p->websocket = WS_createWebsocket(csound, "csound", *p->port, p);
 
     return OK;
 }
@@ -166,13 +171,40 @@ int32_t WSget_perf(CSOUND *csound, WSget *p) {
     // p->output->size = p->i;
     p->i %= 10;
 
-    const auto ws = p->websocket;
+    const Websocket *const ws = p->websocket;
 
     while (true) {
         int messageIndex = 0;
-        const auto read = csound->ReadCircularBuffer(csound, ws->messageIndexBuffer, &messageIndex, 1);
+        const int read = csound->ReadCircularBuffer(csound, ws->messageIndexBuffer, &messageIndex, 1);
         if (read == 1) {
-            csound->Message(csound, Str("%s\n"), ws->messages[messageIndex].data);
+            char *data = ws->messages[messageIndex].data;
+            char *d = data;
+
+            csound->Message(csound, Str("path = %s, "), d);
+            d += strlen(data) + 1;
+
+            const int type = *d;
+            csound->Message(csound, Str("type = %d, "), type);
+            d++;
+
+            if (StringType == type) {
+                csound->Message(csound, Str("data = %s\n"), d);
+            }
+            else if (Float64ArrayType == type) {
+                d += (4 - ((d - data) % 4)) % 4;
+                const uint32_t *length = (const uint32_t*) d;
+                csound->Message(csound, Str("length = %d, "), *length);
+                d += 4;
+
+                d += (8 - ((d - data) % 8)) % 8;
+                const double *data = (const double *) d;
+                csound->Message(csound, Str("data = %s"), "[ ");
+                csound->Message(csound, Str("%.3f"), data[0]);
+                for (int i = 1; i < *length; i++) {
+                    csound->Message(csound, Str(", %.3f"), data[i]);
+                }
+                csound->Message(csound, Str("%s"), " ]\n");
+            }
         }
         else {
             break;
@@ -183,17 +215,16 @@ int32_t WSget_perf(CSOUND *csound, WSget *p) {
 }
 
 static OENTRY localops[] = {
-  {
-    .opname = "WSget",
-    .dsblksiz = sizeof(WSget),
-    .thread = 3,
-    .outypes = "S",
-    .intypes = "Sc",
-    .iopadr = (SUBR)WSget_init,
-    .kopadr = (SUBR)WSget_perf,
-    .aopadr = NULL
-  }
-
+    {
+        .opname = (char*) "WSget",
+        .dsblksiz = sizeof(WSget),
+        .thread = 3,
+        .outypes = (char*) "S",
+        .intypes = (char*) "Sc",
+        .iopadr = (SUBR) WSget_init,
+        .kopadr = (SUBR) WSget_perf,
+        .aopadr = nullptr
+    }
 };
 
 LINKAGE
