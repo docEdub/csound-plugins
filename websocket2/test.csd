@@ -42,8 +42,14 @@ endop
 ; endin
 
 instr 3
-    SValue init ""
-    SValue = WSget("test", 12345)
+    SValue123 init ""
+    SValue1234 init ""
+    SValue12345 init ""
+    SValue123 = WSget(123, "test")
+    SValue123 = WSget(123, "test")
+    SValue1234 = WSget(1234, "test")
+    SValue12345 = WSget(12345, "test")
+    SValue12345 = WSget(12345, "test")
 
 ;    printsk(SValue)
 ;    printsk("\n")
