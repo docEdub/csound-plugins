@@ -11,15 +11,6 @@ enum {
     Float64ArrayType = 2
 };
 
-struct Websocket {
-    struct lws_context *context;
-    struct lws *websocket;
-    struct lws_protocols *protocols;
-    void *processThread;
-    struct lws_context_creation_info info;
-    bool isRunning;
-};
-
 typedef struct {
     char *buffer;
     size_t size;
@@ -33,6 +24,7 @@ typedef struct {
 typedef struct {
     CSOUND *csound;
     CS_HASH_TABLE *pathHashTable;
+    int refCount;
 } SharedWebsocketPortData;
 
 typedef struct {
@@ -41,17 +33,37 @@ typedef struct {
     void *messageIndexCircularBuffer;
 } SharedWebsocketPathData;
 
+struct Websocket {
+    SharedWebsocketPortData *sharedPortData;
+    struct lws_context *context;
+    struct lws *websocket;
+    struct lws_protocols *protocols;
+    void *processThread;
+    struct lws_context_creation_info info;
+    bool isRunning;
+};
+
+static int32_t WS_resetSharedData(CSOUND *csound, void *vshared)
+{
+    SharedWebsocketData *shared = vshared;
+    csound->DestroyHashTable(csound, shared->portHashTable);
+    csound->DestroyGlobalVariable(csound, SharedWebsocketDataName);
+    return OK;
+}
+
 static SharedWebsocketData *WS_getSharedData(CSOUND *csound)
 {
     SharedWebsocketData *shared = csound->QueryGlobalVariable(csound, SharedWebsocketDataName);
-    if (!shared) {
-        csound->CreateGlobalVariable(csound, SharedWebsocketDataName, sizeof(SharedWebsocketData));
-        shared = csound->QueryGlobalVariable(csound, SharedWebsocketDataName);
-        if (!shared) {
-            csound->Die(csound, "Failed to create shared websocket data");
-        }
-        shared->portHashTable = csound->CreateHashTable(csound);
+    if (shared) {
+        return shared;
     }
+    csound->CreateGlobalVariable(csound, SharedWebsocketDataName, sizeof(SharedWebsocketData));
+    shared = csound->QueryGlobalVariable(csound, SharedWebsocketDataName);
+    if (!shared) {
+        csound->ErrorMsg(csound, "Websocket: failed to allocate globals");
+    }
+    shared->portHashTable = csound->CreateHashTable(csound);
+    csound->RegisterResetCallback(csound, shared, WS_resetSharedData);
     return shared;
 }
 
@@ -113,9 +125,15 @@ uintptr_t WS_processThread(void *vws)
     return 0;
 }
 
-int32_t WS_destroyWebsocket(CSOUND *csound, void *vws)
+int32_t WS_releaseWebsocketReference(CSOUND *csound, void *vws)
 {
     Websocket *ws = vws;
+
+    ws->sharedPortData->refCount--;
+    if (0 < ws->sharedPortData->refCount) {
+        return OK;
+    }
+
     ws->isRunning = false;
 
     // for (int i = 0; i < WebsocketBufferCount; i++) {
@@ -141,17 +159,25 @@ void WS_initWebsocket(CSOUND *csound, MYFLT port, char *portKey)
 {
     SharedWebsocketData *shared = WS_getSharedData(csound);
 
-    if (csound->HashTableGetKey(csound, shared->portHashTable, portKey)) {
+    char *hashTablePortKey = csound->GetHashTableKey(csound, shared->portHashTable, portKey);
+    if (hashTablePortKey) {
+        SharedWebsocketPortData *sharedPortData = csound->GetHashTableValue(csound, shared->portHashTable, hashTablePortKey);
+        sharedPortData->refCount++;
         return;
     }
 
     SharedWebsocketPortData *sharedPortData = csound->Calloc(csound, sizeof(SharedWebsocketData));
     sharedPortData->csound = csound;
     sharedPortData->pathHashTable = csound->CreateHashTable(csound);
+    sharedPortData->refCount = 1;
 
-    csound->HashTablePut(csound, shared->portHashTable, portKey, sharedPortData);
+    csound->SetHashTableValue(csound, shared->portHashTable, portKey, sharedPortData);
 
-    Websocket *ws = (Websocket*) csound->Calloc(csound, sizeof(Websocket));
+    Websocket *ws = csound->Calloc(csound, sizeof(Websocket));
+    ws->sharedPortData = sharedPortData;
+
+    // TODO: Figure out why this is crashing.
+    csound->RegisterDeinitCallback(csound, ws, WS_releaseWebsocketReference);
 
     // Allocate 2 protocols; the actual protocol, and a null protocol at the end
     // (idk why, but this is how the original websocket opcode does it and the call to lws_service sometimes crashes
@@ -173,7 +199,7 @@ void WS_initWebsocket(CSOUND *csound, MYFLT port, char *portKey)
     lws_set_log_level(LLL_DEBUG, NULL);
     ws->context = lws_create_context(&ws->info);
     if (UNLIKELY(ws->context == NULL)) {
-        csound->Die(csound, "%s", Str("websocket: could not initialize websocket. Exiting"));
+        csound->InitError(csound, Str("cannot start websocket on port %d\n"), port);
     }
 
     // for (int i = 0; i < WebsocketBufferCount; i++) {
@@ -185,8 +211,6 @@ void WS_initWebsocket(CSOUND *csound, MYFLT port, char *portKey)
     // ws->messageIndex = 0;
     // ws->messageIndexBuffer = csound->CreateCircularBuffer(csound, WebsocketBufferCount, sizeof(int));
     ws->processThread = csound->CreateThread(WS_processThread, ws);
-
-    csound->RegisterDeinitCallback(csound, ws, WS_destroyWebsocket);
 }
 
 int32_t WSget_init(CSOUND *csound, WSget *p)
@@ -196,14 +220,14 @@ int32_t WSget_init(CSOUND *csound, WSget *p)
     p->output->data = csound->Calloc(csound, 11);
 
     p->portKey = *p->port;
-    char *portKey = &p->portKey;
+    char *portKey = (char*) &p->portKey;
     for (size_t i = 0; i < sizeof(MYFLT); i++) {
         if (portKey[i] == 0) {
             portKey[i] = '~';
         }
     }
 
-    WS_initWebsocket(csound, *p->port, &p->portKey);
+    WS_initWebsocket(csound, *p->port, portKey);
 
     return OK;
 }

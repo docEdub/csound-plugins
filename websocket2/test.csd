@@ -46,9 +46,7 @@ instr 3
     SValue1234 init ""
     SValue12345 init ""
     SValue123 = WSget(123, "test")
-    SValue123 = WSget(123, "test")
     SValue1234 = WSget(1234, "test")
-    SValue12345 = WSget(12345, "test")
     SValue12345 = WSget(12345, "test")
 
 ;    printsk(SValue)
@@ -60,7 +58,8 @@ endin
 
 ;i 3 0 15
 ;i 3 15 15
-i 3 0 z
+i 3 0 6
+i 4 0 7
 
 </CsScore>
 </CsoundSynthesizer>
