@@ -187,14 +187,23 @@ void WS_deinitWebsocket(CSOUND *csound, Websocket *ws)
 
     csound->JoinThread(ws->processThread);
 
-    // for (int i = 0; i < WebsocketBufferCount; i++) {
-    //     const STRINGDAT *s = &ws->messages[i];
-    //     if (s->data && 0 < s->size) {
-    //         csound->Free(csound, s->data);
-    //     }
-    // }
-
     lws_context_destroy(ws->context);
+
+    CONS_CELL *pathItem = csound->GetHashTableValues(csound, ws->pathHashTable);
+    while (pathItem) {
+        WebsocketPath *path = pathItem->value;
+
+        for (int i = 0; i < WebsocketBufferCount; i++) {
+            csound->Free(csound, path->messages[i].buffer);
+            path->messages[i].size = 0;
+        }
+
+        csound->DestroyCircularBuffer(csound, path->messageIndexCircularBuffer);
+
+        csound->Free(csound, path);
+
+        pathItem = pathItem->next;
+    }
 
     csound->DestroyHashTable(csound, ws->pathHashTable);
     csound->Free(csound, ws->protocols);
@@ -214,6 +223,8 @@ int32_t WSget_init(CSOUND *csound, WSget *p)
 {
     p->csound = csound;
 
+    // TODO: Find out if this needs to be freed.
+    // Does this need to be freed in WSget_deinit? ...or does Csound take ownership since it's returned by the opcode?
     p->output->data = csound->Calloc(csound, 11);
 
     p->portKey = *p->port;
