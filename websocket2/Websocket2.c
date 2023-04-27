@@ -15,10 +15,9 @@ struct Websocket {
     CS_HASH_TABLE *pathHashTable;
     int refCount;
     struct lws_context *context;
-    // struct lws *websocket;
     struct lws_protocols *protocols;
-    void *processThread;
     struct lws_context_creation_info info;
+    void *processThread;
     bool isRunning;
 };
 
