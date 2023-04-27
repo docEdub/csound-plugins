@@ -56,10 +56,10 @@ endin
 </CsInstruments>
 <CsScore>
 
-;i 3 0 15
-;i 3 15 15
-i 3 0 6
-i 4 0 7
+;i3 0 15
+;i3 15 15
+i3 0 4
+i3 2 6
 
 </CsScore>
 </CsoundSynthesizer>

@@ -125,36 +125,6 @@ uintptr_t WS_processThread(void *vws)
     return 0;
 }
 
-int32_t WS_releaseWebsocketReference(CSOUND *csound, void *vws)
-{
-    Websocket *ws = vws;
-
-    ws->sharedPortData->refCount--;
-    if (0 < ws->sharedPortData->refCount) {
-        return OK;
-    }
-
-    ws->isRunning = false;
-
-    // for (int i = 0; i < WebsocketBufferCount; i++) {
-    //     const STRINGDAT *s = &ws->messages[i];
-    //     if (s->data && 0 < s->size) {
-    //         csound->Free(csound, s->data);
-    //     }
-    // }
-
-    csound->JoinThread(ws->processThread);
-
-    lws_cancel_service(ws->context);
-    lws_context_destroy(ws->context);
-
-    // csound->DestroyCircularBuffer(csound, ws->messageIndexBuffer);
-    csound->Free(csound, ws->protocols);
-    csound->Free(csound, ws);
-
-    return OK;
-}
-
 void WS_initWebsocket(CSOUND *csound, MYFLT port, char *portKey)
 {
     SharedWebsocketData *shared = WS_getSharedData(csound);
@@ -175,9 +145,6 @@ void WS_initWebsocket(CSOUND *csound, MYFLT port, char *portKey)
 
     Websocket *ws = csound->Calloc(csound, sizeof(Websocket));
     ws->sharedPortData = sharedPortData;
-
-    // TODO: Figure out why this is crashing.
-    csound->RegisterDeinitCallback(csound, ws, WS_releaseWebsocketReference);
 
     // Allocate 2 protocols; the actual protocol, and a null protocol at the end
     // (idk why, but this is how the original websocket opcode does it and the call to lws_service sometimes crashes
@@ -213,6 +180,41 @@ void WS_initWebsocket(CSOUND *csound, MYFLT port, char *portKey)
     ws->processThread = csound->CreateThread(WS_processThread, ws);
 }
 
+void WS_deinitWebsocket(CSOUND *csound, Websocket *ws)
+{
+    ws->sharedPortData->refCount--;
+    if (0 < ws->sharedPortData->refCount) {
+        return;
+    }
+
+    ws->isRunning = false;
+
+    // for (int i = 0; i < WebsocketBufferCount; i++) {
+    //     const STRINGDAT *s = &ws->messages[i];
+    //     if (s->data && 0 < s->size) {
+    //         csound->Free(csound, s->data);
+    //     }
+    // }
+
+    csound->JoinThread(ws->processThread);
+
+    lws_cancel_service(ws->context);
+    lws_context_destroy(ws->context);
+
+    // csound->DestroyCircularBuffer(csound, ws->messageIndexBuffer);
+    csound->Free(csound, ws->protocols);
+    csound->Free(csound, ws);
+}
+
+int32_t WSget_deinit(CSOUND *csound, void *vp)
+{
+    WSget *p = vp;
+
+    WS_deinitWebsocket(csound, p->websocket);
+
+    return OK;
+}
+
 int32_t WSget_init(CSOUND *csound, WSget *p)
 {
     p->csound = csound;
@@ -228,6 +230,7 @@ int32_t WSget_init(CSOUND *csound, WSget *p)
     }
 
     WS_initWebsocket(csound, *p->port, portKey);
+    csound->RegisterDeinitCallback(csound, p, WSget_deinit);
 
     return OK;
 }
@@ -235,7 +238,7 @@ int32_t WSget_init(CSOUND *csound, WSget *p)
 int32_t WSget_perf(CSOUND *csound, WSget *p) {
     const Websocket *const ws = p->websocket;
 
-    while (true) {
+    // while (true) {
         // int messageIndex = 0;
         // const int read = csound->ReadCircularBuffer(csound, ws->messageIndexBuffer, &messageIndex, 1);
         // if (read == 1) {
@@ -271,7 +274,7 @@ int32_t WSget_perf(CSOUND *csound, WSget *p) {
         // else {
         //     break;
         // }
-    }
+    // }
 
     return OK;
 }
