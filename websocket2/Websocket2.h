@@ -11,14 +11,19 @@ extern "C" {
 
 typedef struct Websocket Websocket;
 
+typedef struct PortKey
+{
+    MYFLT port;
+    int nullTerminator;
+} PortKey;
+
 typedef struct WSget
 {
     OPDS h;
     STRINGDAT *output;
     MYFLT *port;
     STRINGDAT *channelName;
-    MYFLT portKey;
-    int portKeyNullTermiator;
+    PortKey portKey;
     CSOUND *csound;
     Websocket *websocket;
 } WSget;

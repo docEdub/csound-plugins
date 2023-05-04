@@ -3,16 +3,17 @@
 #include <libwebsockets.h>
 
 static const char *SharedWebsocketDataGlobalVariableName = "SharedWebsocketData";
-static const int WebsocketBufferCount = 1024;
+static const int WebsocketBufferCount = 10;//1024;
 static const int WebsocketInitialMessageSize = 1024;
 
 typedef struct {
-    CS_HASH_TABLE *portWebsocketHashTable;
+    CS_HASH_TABLE *portWebsocketHashTable; // key = port float as string, value = Websocket
 } SharedWebsocketData;
 
 struct Websocket {
     CSOUND *csound;
-    CS_HASH_TABLE *pathHashTable;
+    CS_HASH_TABLE *pathFloatsHashTable; // key = path string, value = WebsocketPath containing a MYFLT array.
+    CS_HASH_TABLE *pathStringHashTable; // key = path string, value = WebsocketPath containing a string
     int refCount;
     struct lws_context *context;
     struct lws_protocols *protocols;
@@ -61,6 +62,29 @@ static SharedWebsocketData *WS_getSharedData(CSOUND *csound)
     return shared;
 }
 
+char *initPortKeyString(MYFLT port, PortKey *portKey)
+{
+    portKey->port = port;
+    portKey->nullTerminator = 0;
+
+    char *s = (char*)(&portKey->port);
+    for (size_t i = 0; i < sizeof(MYFLT); i++) {
+        if (s[i] == 0) {
+            s[i] = '~';
+        }
+    }
+
+    return s;
+}
+
+WebsocketPath *initPathData(CSOUND *csound)
+{
+    WebsocketPath *pathData = csound->Calloc(csound, sizeof(WebsocketPath));
+    pathData->messageIndexCircularBuffer = csound->CreateCircularBuffer(csound, WebsocketBufferCount, sizeof(pathData->messageIndex));
+
+    return pathData;
+}
+
 static int32_t WS_callback(
     struct lws *websocket,
     enum lws_callback_reasons reason,
@@ -72,36 +96,96 @@ static int32_t WS_callback(
         return OK;
     }
 
-    const struct lws_protocols *protocol = lws_get_protocol(websocket);
-    Websocket *sharedPortData = protocol->user;
-    CSOUND *csound = sharedPortData->csound;
-
     if (inputData && 0 < inputDataSize) {
-        // const int messageSize = inputDataSize + 1;
+        const struct lws_protocols *protocol = lws_get_protocol(websocket);
+        const Websocket *ws = protocol->user;
+        CSOUND *csound = ws->csound;
 
-        // STRINGDAT *s = &ws->messages[ws->messageIndex];
+        // Get the path. It should be a null terminated string at the beginning of the received data.
+        char *data = inputData;
+        char *d = data;
+        char *path = d;
+        csound->Message(csound, Str("path = %s, "), path);
+        d += strlen(path) + 1;
 
-        // if (0 < s->size && s->size < messageSize) {
-        //     csound->Free(csound, s->data);
-        //     s->size = 0;
-        // }
-        // if (s->size == 0) {
-        //     s->size = sizeof(char) * messageSize;
-        //     s->data = (char*) csound->Calloc(csound, s->size);
-        // }
-        // memcpy(s->data, inputData, inputDataSize);
-        // s->data[inputDataSize] = '\0';
+        const int type = *d;
+        csound->Message(csound, Str("type = %d, "), type);
+        d++;
 
-        // while (true) {
-        //     const int written = csound->WriteCircularBuffer(csound, ws->messageIndexBuffer, &ws->messageIndex, 1);
-        //     if (written != 0) {
-        //         break;
-        //     }
-        //     csound->Sleep(1);
-        // }
+        char *bufferData = NULL;
+        size_t bufferSize = 0;
+        WebsocketPath *pathData = NULL;
 
-        // ws->messageIndex++;
-        // ws->messageIndex %= WebsocketBufferCount;
+        if (Float64ArrayType == type) {
+            d += (4 - ((d - data) % 4)) % 4;
+            const uint32_t *length = (uint32_t*)d;
+            csound->Message(csound, Str("length = %d, "), *length);
+            d += 4;
+
+            d += (8 - ((d - data) % 8)) % 8;
+            const double *values = (double*)d;
+            csound->Message(csound, Str("data = %s"), "[ ");
+            csound->Message(csound, Str("%.3f"), values[0]);
+            for (int i = 1; i < *length; i++) {
+                csound->Message(csound, Str(", %.3f"), values[i]);
+            }
+            csound->Message(csound, Str("%s"), " ]\n");
+
+            char *pathKey = csound->GetHashTableKey(csound, ws->pathFloatsHashTable, path);
+            if (pathKey) {
+                pathData = csound->GetHashTableValue(csound, ws->pathFloatsHashTable, pathKey);
+            }
+            else {
+                pathData = initPathData(csound);
+                csound->SetHashTableValue(csound, ws->pathFloatsHashTable, path, pathData);
+            }
+            bufferData = d;
+            bufferSize = *length * sizeof(double);
+        }
+        else if (StringType == type) {
+            csound->Message(csound, Str("data = %s\n"), d);
+
+            char *pathKey = csound->GetHashTableKey(csound, ws->pathStringHashTable, path);
+            if (pathKey) {
+                pathData = csound->GetHashTableValue(csound, ws->pathStringHashTable, pathKey);
+            }
+            else {
+                pathData = initPathData(csound);
+                csound->SetHashTableValue(csound, ws->pathStringHashTable, path, pathData);
+            }
+            bufferData = d;
+            bufferSize = strlen(d) + 1;
+        }
+        else {
+            csound->Message(csound, Str("%s\n"), "WARNING: Unknown websocket data type received");
+        }
+
+        WebsocketMessage *msg = &pathData->messages[pathData->messageIndex];
+
+        if (0 < msg->size && msg->size < bufferSize) {
+            csound->Free(csound, msg->buffer);
+            msg->size = 0;
+        }
+        if (msg->size == 0) {
+            msg->buffer = csound->Calloc(csound, bufferSize);
+            msg->size = bufferSize;
+        }
+        memcpy(msg->buffer, bufferData, bufferSize);
+
+        while (true) {
+            int written = csound->WriteCircularBuffer(csound, pathData->messageIndexCircularBuffer, &pathData->messageIndex, 1);
+            if (written != 0) {
+                break;
+            }
+            
+            // Message buffer is full. Read 1 item from it to free up room for the incoming message.
+            // csound->Message(csound, Str("WARNING: port %d path %s message buffer full\n"), ws->info.port, path);
+            int index;
+            csound->ReadCircularBuffer(csound, pathData->messageIndexCircularBuffer, &index, 1);
+        }
+
+        pathData->messageIndex++;
+        pathData->messageIndex %= WebsocketBufferCount;
     }
 
     return OK;
@@ -134,7 +218,8 @@ Websocket *WS_initWebsocket(CSOUND *csound, MYFLT port, char *portKey)
 
     ws = csound->Calloc(csound, sizeof(Websocket));
     ws->csound = csound;
-    ws->pathHashTable = csound->CreateHashTable(csound);
+    ws->pathStringHashTable = csound->CreateHashTable(csound);
+    ws->pathFloatsHashTable = csound->CreateHashTable(csound);
     ws->refCount = 1;
 
     csound->SetHashTableValue(csound, shared->portWebsocketHashTable, portKey, ws);
@@ -174,21 +259,9 @@ Websocket *WS_initWebsocket(CSOUND *csound, MYFLT port, char *portKey)
     return ws;
 }
 
-void WS_deinitWebsocket(CSOUND *csound, Websocket *ws)
+void WS_deinitPathHashTable(CSOUND *csound, CS_HASH_TABLE *pathHashTable)
 {
-    ws->refCount--;
-    if (0 < ws->refCount) {
-        return;
-    }
-
-    ws->isRunning = false;
-    lws_cancel_service(ws->context);
-
-    csound->JoinThread(ws->processThread);
-
-    lws_context_destroy(ws->context);
-
-    CONS_CELL *pathItem = csound->GetHashTableValues(csound, ws->pathHashTable);
+    CONS_CELL *pathItem = csound->GetHashTableValues(csound, pathHashTable);
     while (pathItem) {
         WebsocketPath *path = pathItem->value;
 
@@ -204,7 +277,26 @@ void WS_deinitWebsocket(CSOUND *csound, Websocket *ws)
         pathItem = pathItem->next;
     }
 
-    csound->DestroyHashTable(csound, ws->pathHashTable);
+    csound->DestroyHashTable(csound, pathHashTable);
+}
+
+void WS_deinitWebsocket(CSOUND *csound, Websocket *ws)
+{
+    ws->refCount--;
+    if (0 < ws->refCount) {
+        return;
+    }
+
+    ws->isRunning = false;
+    lws_cancel_service(ws->context);
+
+    csound->JoinThread(ws->processThread);
+
+    lws_context_destroy(ws->context);
+
+    WS_deinitPathHashTable(csound, ws->pathFloatsHashTable);
+    WS_deinitPathHashTable(csound, ws->pathStringHashTable);
+
     csound->Free(csound, ws->protocols);
     csound->Free(csound, ws);
 }
@@ -226,14 +318,7 @@ int32_t WSget_init(CSOUND *csound, WSget *p)
     // Does this need to be freed in WSget_deinit? ...or does Csound take ownership since it's returned by the opcode?
     p->output->data = csound->Calloc(csound, 11);
 
-    p->portKey = *p->port;
-    char *portKey = (char*) &p->portKey;
-    for (size_t i = 0; i < sizeof(MYFLT); i++) {
-        if (portKey[i] == 0) {
-            portKey[i] = '~';
-        }
-    }
-
+    char *portKey = initPortKeyString(*p->port, &p->portKey);
     p->websocket = WS_initWebsocket(csound, *p->port, portKey);
 
     csound->RegisterDeinitCallback(csound, p, WSget_deinit);
