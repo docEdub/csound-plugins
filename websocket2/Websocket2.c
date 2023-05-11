@@ -3,7 +3,7 @@
 #include <libwebsockets.h>
 
 static const char *SharedWebsocketDataGlobalVariableName = "SharedWebsocketData";
-static const int WebsocketBufferCount = 10;//1024;
+static const int WebsocketBufferCount = 2;//1024;
 static const int WebsocketInitialMessageSize = 1024;
 
 typedef struct {
@@ -102,14 +102,26 @@ static int32_t WS_callback(
         CSOUND *csound = ws->csound;
 
         // Get the path. It should be a null terminated string at the beginning of the received data.
+        // Notes:
+        //  - The path is sometimes empty when the browser doesn't have focus (I don't know why).
+        //  - The path is sometimes garbage when the browser doesn't have focus, but the type is zero, so it gets ignored anyway.
         char *data = inputData;
         char *d = data;
         char *path = d;
-        csound->Message(csound, Str("path = %s, "), path);
-        d += strlen(path) + 1;
+
+        size_t pathLength = strlen(path);
+        if (pathLength == 0) {
+            return OK;
+        }
+
+        // csound->Message(csound, Str("path = %s, "), path);
+        d += pathLength + 1;
 
         const int type = *d;
-        csound->Message(csound, Str("type = %d, "), type);
+        if (type == 0) {
+            return OK;
+        }
+        // csound->Message(csound, Str("type = %d, "), type);
         d++;
 
         char *bufferData = NULL;
@@ -119,17 +131,17 @@ static int32_t WS_callback(
         if (Float64ArrayType == type) {
             d += (4 - ((d - data) % 4)) % 4;
             const uint32_t *length = (uint32_t*)d;
-            csound->Message(csound, Str("length = %d, "), *length);
             d += 4;
+            // csound->Message(csound, Str("length = %d, "), *length);
 
             d += (8 - ((d - data) % 8)) % 8;
             const double *values = (double*)d;
-            csound->Message(csound, Str("data = %s"), "[ ");
-            csound->Message(csound, Str("%.3f"), values[0]);
-            for (int i = 1; i < *length; i++) {
-                csound->Message(csound, Str(", %.3f"), values[i]);
-            }
-            csound->Message(csound, Str("%s"), " ]\n");
+            // csound->Message(csound, Str("data = %s"), "[ ");
+            // csound->Message(csound, Str("%.3f"), values[0]);
+            // for (int i = 1; i < *length; i++) {
+            //     csound->Message(csound, Str(", %.3f"), values[i]);
+            // }
+            // csound->Message(csound, Str("%s"), " ]\n");
 
             char *pathKey = csound->GetHashTableKey(csound, ws->pathFloatsHashTable, path);
             if (pathKey) {
@@ -143,7 +155,7 @@ static int32_t WS_callback(
             bufferSize = *length * sizeof(double);
         }
         else if (StringType == type) {
-            csound->Message(csound, Str("data = %s\n"), d);
+            // csound->Message(csound, Str("data = %s\n"), d);
 
             char *pathKey = csound->GetHashTableKey(csound, ws->pathStringHashTable, path);
             if (pathKey) {
@@ -157,7 +169,8 @@ static int32_t WS_callback(
             bufferSize = strlen(d) + 1;
         }
         else {
-            csound->Message(csound, Str("%s\n"), "WARNING: Unknown websocket data type received");
+            csound->Message(csound, Str("WARNING: Unknown websocket data type %d received\n"), type);
+            return OK;
         }
 
         WebsocketMessage *msg = &pathData->messages[pathData->messageIndex];
@@ -177,7 +190,7 @@ static int32_t WS_callback(
             if (written != 0) {
                 break;
             }
-            
+
             // Message buffer is full. Read 1 item from it to free up room for the incoming message.
             // csound->Message(csound, Str("WARNING: port %d path %s message buffer full\n"), ws->info.port, path);
             int index;
