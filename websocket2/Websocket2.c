@@ -327,10 +327,6 @@ int32_t WSget_init(CSOUND *csound, WSget *p)
 {
     p->csound = csound;
 
-    // TODO: Find out if this needs to be freed.
-    // Does this need to be freed in WSget_deinit? ...or does Csound take ownership since it's returned by the opcode?
-    p->output->data = csound->Calloc(csound, 11);
-
     char *portKey = initPortKeyString(*p->port, &p->portKey);
     p->websocket = WS_initWebsocket(csound, *p->port, portKey);
 
@@ -339,59 +335,96 @@ int32_t WSget_init(CSOUND *csound, WSget *p)
     return OK;
 }
 
-int32_t WSget_perf(CSOUND *csound, WSget *p) {
+int32_t WSget_perf_asString(CSOUND *csound, WSget *p) {
     const Websocket *const ws = p->websocket;
 
-    // while (true) {
-        // int messageIndex = 0;
-        // const int read = csound->ReadCircularBuffer(csound, ws->messageIndexBuffer, &messageIndex, 1);
-        // if (read == 1) {
-        //     char *data = ws->messages[messageIndex].data;
-        //     char *d = data;
+    CS_HASH_TABLE *hashTable = ws->pathStringHashTable;
+    
+    WebsocketPath *wsPath = csound->GetHashTableValue(csound, hashTable, p->path->data);
+    if (!wsPath) {
+        return OK;
+    }
 
-        //     csound->Message(csound, Str("path = %s, "), d);
-        //     d += strlen(data) + 1;
+    STRINGDAT *output = p->output;
 
-        //     const int type = *d;
-        //     csound->Message(csound, Str("type = %d, "), type);
-        //     d++;
+    while (true) {
+        int messageIndex = 0;
+        const int read = csound->ReadCircularBuffer(csound, wsPath->messageIndexCircularBuffer, &messageIndex, 1);
+        if (read == 1) {
+            char *d = wsPath->messages[messageIndex].buffer;
 
-        //     if (StringType == type) {
-        //         csound->Message(csound, Str("data = %s\n"), d);
-        //     }
-        //     else if (Float64ArrayType == type) {
-        //         d += (4 - ((d - data) % 4)) % 4;
-        //         const uint32_t *length = d;
-        //         csound->Message(csound, Str("length = %d, "), *length);
-        //         d += 4;
+            // csound->Message(csound, Str("data = %s\n"), d);
+            size_t length = strlen(d);
+            if (output->size < length) {
+                csound->Free(csound, output->data);
+                output->data = csound->Malloc(csound, 2 * length + 1);
+                output->size = 2 * length + 1;
+            }
+            memset(output->data, 0, output->size);
+            memcpy(output->data, d, length);
+        }
+        else {
+            break;
+        }
+    }
 
-        //         d += (8 - ((d - data) % 8)) % 8;
-        //         const double *data = d;
-        //         csound->Message(csound, Str("data = %s"), "[ ");
-        //         csound->Message(csound, Str("%.3f"), data[0]);
-        //         for (int i = 1; i < *length; i++) {
-        //             csound->Message(csound, Str(", %.3f"), data[i]);
-        //         }
-        //         csound->Message(csound, Str("%s"), " ]\n");
-        //     }
-        // }
-        // else {
-        //     break;
-        // }
-    // }
+    return OK;
+}
+
+int32_t WSget_perf_asFloats(CSOUND *csound, WSget *p) {
+    const Websocket *const ws = p->websocket;
+
+    CS_HASH_TABLE *hashTable = ws->pathFloatsHashTable;
+    
+    WebsocketPath *wsPath = csound->GetHashTableValue(csound, hashTable, p->path->data);
+    if (!wsPath) {
+        return OK;
+    }
+
+    ARRAYDAT *output = p->output;
+
+    while (true) {
+        int messageIndex = 0;
+        const int read = csound->ReadCircularBuffer(csound, wsPath->messageIndexCircularBuffer, &messageIndex, 1);
+        if (read == 1) {
+            MYFLT *d = wsPath->messages[messageIndex].buffer;
+
+            size_t size = wsPath->messages[messageIndex].size;
+            int arrayLength = size / 4;
+            if (output->allocated < arrayLength) {
+                csound->Free(csound, output->data);
+                output->data = csound->Malloc(csound, 2 * size);
+                output->allocated = 2 * arrayLength;
+            }
+            memcpy(output->data, d, size);
+        }
+        else {
+            break;
+        }
+    }
 
     return OK;
 }
 
 static OENTRY localops[] = {
     {
-        .opname = "WSget",
+        .opname = "WSget_s",
         .dsblksiz = sizeof(WSget),
         .thread = 3,
         .outypes = "S",
         .intypes = "cS",
         .iopadr = (SUBR) WSget_init,
-        .kopadr = (SUBR) WSget_perf,
+        .kopadr = (SUBR) WSget_perf_asString,
+        .aopadr = NULL
+    },
+    {
+        .opname = "WSget_k",
+        .dsblksiz = sizeof(WSget),
+        .thread = 3,
+        .outypes = "k[]",
+        .intypes = "cS",
+        .iopadr = (SUBR) WSget_init,
+        .kopadr = (SUBR) WSget_perf_asFloats,
         .aopadr = NULL
     }
 };

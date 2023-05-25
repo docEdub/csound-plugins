@@ -20,9 +20,9 @@ typedef struct PortKey
 typedef struct WSget
 {
     OPDS h;
-    STRINGDAT *output;
+    void *output; // Will be STRINGDAT* or ARRAYDAT*
     MYFLT *port;
-    STRINGDAT *channelName;
+    STRINGDAT *path;
     PortKey portKey;
     CSOUND *csound;
     Websocket *websocket;
