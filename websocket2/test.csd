@@ -23,12 +23,12 @@ endop
 
 instr 1
     SValue1 init ""
-    kValue2[] init 3
+    kValue2[] init 150
 
     SValue1 = WSget_s(12345, "/test/1")
     printsk("SValue1 = %s\n", SValue1)
     
-    kValue2 = WSget_k(12345, "/test/2")
+    kValue2 = WSget_k(12345, "/osc-ar/hands")
     ki = 0
     printsk("kValue = [");
     while (ki < lenarray:k(kValue2)) do
