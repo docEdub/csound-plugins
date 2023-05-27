@@ -348,9 +348,15 @@ int32_t WSget_perf_asString(CSOUND *csound, WSget *p) {
     STRINGDAT *output = p->output;
 
     while (true) {
-        int messageIndex = 0;
+        int messageIndex = -1;
         const int read = csound->ReadCircularBuffer(csound, wsPath->messageIndexCircularBuffer, &messageIndex, 1);
         if (read == 1) {
+            // Make sure we're reading the most recent message sent to the websocket.
+            int unused = -1;
+            if (csound->PeekCircularBuffer(csound, wsPath->messageIndexCircularBuffer, &unused, 1)) {
+                continue;
+            }
+
             char *d = wsPath->messages[messageIndex].buffer;
 
             // csound->Message(csound, Str("data = %s\n"), d);
@@ -384,9 +390,15 @@ int32_t WSget_perf_asFloats(CSOUND *csound, WSget *p) {
     ARRAYDAT *output = p->output;
 
     while (true) {
-        int messageIndex = 0;
+        int messageIndex = -1;
         const int read = csound->ReadCircularBuffer(csound, wsPath->messageIndexCircularBuffer, &messageIndex, 1);
         if (read == 1) {
+            // Make sure we're reading the most recent message sent to the websocket.
+            int unused = -1;
+            if (csound->PeekCircularBuffer(csound, wsPath->messageIndexCircularBuffer, &unused, 1)) {
+                continue;
+            }
+
             MYFLT *d = wsPath->messages[messageIndex].buffer;
 
             size_t size = wsPath->messages[messageIndex].size;
