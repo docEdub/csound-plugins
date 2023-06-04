@@ -81,7 +81,6 @@ WebsocketPath *initPathData(CSOUND *csound)
 {
     WebsocketPath *pathData = csound->Calloc(csound, sizeof(WebsocketPath));
     pathData->messageIndexCircularBuffer = csound->CreateCircularBuffer(csound, WebsocketBufferCount, sizeof(pathData->messageIndex));
-
     return pathData;
 }
 
@@ -259,14 +258,6 @@ Websocket *WS_initWebsocket(CSOUND *csound, MYFLT port, char *portKey)
         csound->InitError(csound, Str("cannot start websocket on port %d\n"), port);
     }
 
-    // for (int i = 0; i < WebsocketBufferCount; i++) {
-    //     STRINGDAT *s = &ws->messages[i];
-    //     s->size = WebsocketInitialMessageSize + 1;
-    //     s->data = (char*) csound->Calloc(csound, s->size);
-    // }
-
-    // ws->messageIndex = 0;
-    // ws->messageIndexBuffer = csound->CreateCircularBuffer(csound, WebsocketBufferCount, sizeof(int));
     ws->processThread = csound->CreateThread(WS_processThread, ws);
 
     return ws;
@@ -317,9 +308,7 @@ void WS_deinitWebsocket(CSOUND *csound, Websocket *ws)
 int32_t WSget_deinit(CSOUND *csound, void *vp)
 {
     WSget *p = vp;
-
     WS_deinitWebsocket(csound, p->websocket);
-
     return OK;
 }
 
