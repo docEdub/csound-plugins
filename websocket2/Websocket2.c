@@ -419,11 +419,31 @@ static OENTRY localops[] = {
         .aopadr = NULL
     },
     {
+        .opname = "WSget_s",
+        .dsblksiz = sizeof(WSget),
+        .thread = 3,
+        .outypes = "S",
+        .intypes = "iS",
+        .iopadr = (SUBR) WSget_init,
+        .kopadr = (SUBR) WSget_perf_asString,
+        .aopadr = NULL
+    },
+    {
         .opname = "WSget_k",
         .dsblksiz = sizeof(WSget),
         .thread = 3,
         .outypes = "k[]",
         .intypes = "cS",
+        .iopadr = (SUBR) WSget_init,
+        .kopadr = (SUBR) WSget_perf_asFloats,
+        .aopadr = NULL
+    },
+    {
+        .opname = "WSget_k",
+        .dsblksiz = sizeof(WSget),
+        .thread = 3,
+        .outypes = "k[]",
+        .intypes = "iS",
         .iopadr = (SUBR) WSget_init,
         .kopadr = (SUBR) WSget_perf_asFloats,
         .aopadr = NULL
