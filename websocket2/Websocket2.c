@@ -388,7 +388,7 @@ int32_t WSget_perf_asFloats(CSOUND *csound, WSget *p) {
                 continue;
             }
 
-            MYFLT *d = wsPath->messages[messageIndex].buffer;
+            MYFLT *d = (MYFLT*) wsPath->messages[messageIndex].buffer;
 
             size_t size = wsPath->messages[messageIndex].size;
             int arrayLength = size / 4;
