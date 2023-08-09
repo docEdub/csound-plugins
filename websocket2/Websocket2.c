@@ -323,6 +323,7 @@ void WS_deinitWebsocket(CSOUND *csound, Websocket *ws)
     WS_deinitPathHashTable(csound, ws->pathFloatsHashTable);
     WS_deinitPathHashTable(csound, ws->pathStringHashTable);
 
+    csound->Free(csound, ws->receiveBuffer);
     csound->Free(csound, ws->protocols);
     csound->Free(csound, ws);
 }
