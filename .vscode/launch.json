@@ -10,6 +10,17 @@
             "stopAtEntry": false,
             "MIMode": "lldb",
             "preLaunchTask": "Build"
+        },
+        {
+            "name": "Reaper",
+            "type": "cppdbg",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "/Applications/REAPER64--v6.70--universal.app/Contents/MacOS/REAPER",
+            "stopAtConnect": false,
+            "stopAtEntry": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "Build"
         }
     ]
 }
