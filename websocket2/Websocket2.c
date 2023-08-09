@@ -18,6 +18,9 @@ struct Websocket {
     struct lws_context *context;
     struct lws_protocols *protocols;
     struct lws_context_creation_info info;
+    char *receiveBuffer;
+    int receiveBufferSize;
+    int receiveBufferIndex;
     void *processThread;
     bool isRunning;
 };
@@ -97,19 +100,39 @@ static int32_t WS_callback(
 
     if (inputData && 0 < inputDataSize) {
         const struct lws_protocols *protocol = lws_get_protocol(websocket);
-        const Websocket *ws = protocol->user;
+        Websocket *ws = protocol->user;
         CSOUND *csound = ws->csound;
 
+        // Handle partially received messages.
+        const int receivedCount = ws->receiveBufferIndex + inputDataSize;
+        if (!ws->receiveBuffer) {
+            ws->receiveBuffer = csound->Calloc(csound, receivedCount);
+            ws->receiveBufferSize = receivedCount;
+        }
+        else if (ws->receiveBufferSize < receivedCount) {
+            char *newReceiveBuffer = csound->Calloc(csound, receivedCount);
+            memcpy(newReceiveBuffer, ws->receiveBuffer, ws->receiveBufferSize);
+            csound->Free(csound, ws->receiveBuffer);
+            ws->receiveBuffer = newReceiveBuffer;
+            ws->receiveBufferSize = receivedCount;
+        }
+        char *receiveBufferDest = ws->receiveBuffer + ws->receiveBufferIndex;
+        memcpy(receiveBufferDest, inputData, inputDataSize);
+        int isFinalFragment = lws_is_final_fragment(websocket);
+        if (!isFinalFragment) {
+            ws->receiveBufferIndex += inputDataSize;
+            return OK;
+        }
+        ws->receiveBufferIndex = 0;
+
         // Get the path. It should be a null terminated string at the beginning of the received data.
-        // Notes:
-        //  - The path is sometimes empty when the browser doesn't have focus (I don't know why).
-        //  - The path is sometimes garbage when the browser doesn't have focus, but the type is zero, so it gets ignored anyway.
-        char *data = inputData;
+        char *data = ws->receiveBuffer;
         char *d = data;
         char *path = d;
 
         size_t pathLength = strlen(path);
         if (pathLength == 0) {
+            csound->Message(csound, Str("WARNING: websocket path is empty\n"));
             return OK;
         }
 
@@ -117,9 +140,6 @@ static int32_t WS_callback(
         d += pathLength + 1;
 
         const int type = *d;
-        if (type == 0) {
-            return OK;
-        }
         // csound->Message(csound, Str("type = %d, "), type);
         d++;
 
