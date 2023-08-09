@@ -139,6 +139,7 @@ static int32_t WS_callback(
         // csound->Message(csound, Str("path = %s, "), path);
         d += pathLength + 1;
 
+        // Get the data type. It should be either 1 or 2 for string or doubles array.
         const int type = *d;
         // csound->Message(csound, Str("type = %d, "), type);
         d++;
@@ -147,6 +148,7 @@ static int32_t WS_callback(
         size_t bufferSize = 0;
         WebsocketPath *pathData = NULL;
 
+        // Write the data to the path's messages circular buffer.
         if (Float64ArrayType == type) {
             d += (4 - ((d - data) % 4)) % 4;
             const uint32_t *length = (uint32_t*)d;
@@ -260,7 +262,7 @@ Websocket *WS_initWebsocket(CSOUND *csound, MYFLT port, char *portKey)
     // (idk why, but this is how the original websocket opcode does it and the call to lws_service sometimes crashes
     // without it).
     ws->protocols = csound->Calloc(csound, sizeof(struct lws_protocols) * 2);
-    
+
     ws->protocols[0].callback = WS_callback;
     ws->protocols[0].id = 1000;
     ws->protocols[0].name = "csound";
@@ -348,7 +350,7 @@ int32_t WSget_perf_asString(CSOUND *csound, WSget *p) {
     const Websocket *const ws = p->websocket;
 
     CS_HASH_TABLE *hashTable = ws->pathStringHashTable;
-    
+
     WebsocketPath *wsPath = csound->GetHashTableValue(csound, hashTable, p->path->data);
     if (!wsPath) {
         return OK;
@@ -390,7 +392,7 @@ int32_t WSget_perf_asFloats(CSOUND *csound, WSget *p) {
     const Websocket *const ws = p->websocket;
 
     CS_HASH_TABLE *hashTable = ws->pathFloatsHashTable;
-    
+
     WebsocketPath *wsPath = csound->GetHashTableValue(csound, hashTable, p->path->data);
     if (!wsPath) {
         return OK;
