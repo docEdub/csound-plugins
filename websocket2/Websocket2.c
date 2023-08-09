@@ -132,7 +132,7 @@ static int32_t WS_callback(
 
         size_t pathLength = strlen(path);
         if (pathLength == 0) {
-            csound->Message(csound, Str("WARNING: websocket path is empty\n"));
+            csound->Message(csound, Str("%s"), "WARNING: websocket path is empty\n");
             return OK;
         }
 
