@@ -103,30 +103,38 @@ static int32_t WS_callback(
         Websocket *ws = protocol->user;
         CSOUND *csound = ws->csound;
 
-        // Handle partially received messages.
-        const int receivedCount = ws->receiveBufferIndex + inputDataSize;
-        if (!ws->receiveBuffer) {
-            ws->receiveBuffer = csound->Calloc(csound, receivedCount);
-            ws->receiveBufferSize = receivedCount;
-        }
-        else if (ws->receiveBufferSize < receivedCount) {
-            char *newReceiveBuffer = csound->Calloc(csound, receivedCount);
-            memcpy(newReceiveBuffer, ws->receiveBuffer, ws->receiveBufferSize);
-            csound->Free(csound, ws->receiveBuffer);
-            ws->receiveBuffer = newReceiveBuffer;
-            ws->receiveBufferSize = receivedCount;
-        }
-        char *receiveBufferDest = ws->receiveBuffer + ws->receiveBufferIndex;
-        memcpy(receiveBufferDest, inputData, inputDataSize);
+        char *data = NULL;
+
         int isFinalFragment = lws_is_final_fragment(websocket);
-        if (!isFinalFragment) {
-            ws->receiveBufferIndex += inputDataSize;
-            return OK;
+        if (isFinalFragment && ws->receiveBufferIndex == 0) {
+            data = inputData;
         }
-        ws->receiveBufferIndex = 0;
+        else {
+            // Handle partially received messages.
+            const int receivedCount = ws->receiveBufferIndex + inputDataSize;
+            if (!ws->receiveBuffer) {
+                ws->receiveBuffer = csound->Calloc(csound, receivedCount);
+                ws->receiveBufferSize = receivedCount;
+            }
+            else if (ws->receiveBufferSize < receivedCount) {
+                char *newReceiveBuffer = csound->Calloc(csound, receivedCount);
+                memcpy(newReceiveBuffer, ws->receiveBuffer, ws->receiveBufferSize);
+                csound->Free(csound, ws->receiveBuffer);
+                ws->receiveBuffer = newReceiveBuffer;
+                ws->receiveBufferSize = receivedCount;
+            }
+            char *receiveBufferDest = ws->receiveBuffer + ws->receiveBufferIndex;
+            memcpy(receiveBufferDest, inputData, inputDataSize);
+            if (!isFinalFragment) {
+                ws->receiveBufferIndex += inputDataSize;
+                return OK;
+            }
+            ws->receiveBufferIndex = 0;
+
+            data = ws->receiveBuffer;
+        }
 
         // Get the path. It should be a null terminated string at the beginning of the received data.
-        char *data = ws->receiveBuffer;
         char *d = data;
         char *path = d;
 
