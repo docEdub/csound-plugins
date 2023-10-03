@@ -1,5 +1,5 @@
-#ifndef WEBSOCKET_GET_H
-#define WEBSOCKET_GET_H
+#ifndef WEBSOCKET_SET_H
+#define WEBSOCKET_SET_H
 
 #include "websocket_common.h"
 
@@ -7,19 +7,19 @@
 extern "C" {
 #endif
 
-typedef struct WS_get
+typedef struct WS_set
 {
     OPDS h;
-    void *output; // Will be STRINGDAT* or ARRAYDAT*
     MYFLT *port;
     STRINGDAT *path;
+    void *input; // Must be STRINGDAT* or ARRAYDAT*
     PortKey portKey;
     CSOUND *csound;
     Websocket *websocket;
-} WS_get;
+} WS_set;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // #ifndef WEBSOCKET_GET_H
+#endif // #ifndef WEBSOCKET_SET_H

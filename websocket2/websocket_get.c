@@ -1,7 +1,5 @@
 #include "websocket_get.h"
 
-#include <libwebsockets.h>
-
 static const char *SharedWebsocketDataGlobalVariableName = "SharedWebsocketData";
 static const int WebsocketBufferCount = 2;//1024;
 static const int WebsocketInitialMessageSize = 1024;
@@ -9,21 +7,6 @@ static const int WebsocketInitialMessageSize = 1024;
 typedef struct {
     CS_HASH_TABLE *portWebsocketHashTable; // key = port float as string, value = Websocket
 } SharedWebsocketData;
-
-struct Websocket {
-    CSOUND *csound;
-    CS_HASH_TABLE *pathFloatsHashTable; // key = path string, value = WebsocketPath containing a MYFLT array.
-    CS_HASH_TABLE *pathStringHashTable; // key = path string, value = WebsocketPath containing a string
-    int refCount;
-    struct lws_context *context;
-    struct lws_protocols *protocols;
-    struct lws_context_creation_info info;
-    char *receiveBuffer;
-    int receiveBufferSize;
-    int receiveBufferIndex;
-    void *processThread;
-    bool isRunning;
-};
 
 typedef struct WebsocketMessage {
     char *buffer;
@@ -437,48 +420,3 @@ int32_t websocket_getArray_perf(CSOUND *csound, WS_get *p) {
 
     return OK;
 }
-
-static OENTRY localops[] = {
-    {
-        .opname = "websocket_getString",
-        .dsblksiz = sizeof(WS_get),
-        .thread = 3,
-        .outypes = "S",
-        .intypes = "cS",
-        .iopadr = (SUBR) websocket_get_init,
-        .kopadr = (SUBR) websocket_getString_perf,
-        .aopadr = NULL
-    },
-    {
-        .opname = "websocket_getString",
-        .dsblksiz = sizeof(WS_get),
-        .thread = 3,
-        .outypes = "S",
-        .intypes = "iS",
-        .iopadr = (SUBR) websocket_get_init,
-        .kopadr = (SUBR) websocket_getString_perf,
-        .aopadr = NULL
-    },
-    {
-        .opname = "websocket_getArray",
-        .dsblksiz = sizeof(WS_get),
-        .thread = 3,
-        .outypes = "k[]",
-        .intypes = "cS",
-        .iopadr = (SUBR) websocket_get_init,
-        .kopadr = (SUBR) websocket_getArray_perf,
-        .aopadr = NULL
-    },
-    {
-        .opname = "websocket_getArray",
-        .dsblksiz = sizeof(WS_get),
-        .thread = 3,
-        .outypes = "k[]",
-        .intypes = "iS",
-        .iopadr = (SUBR) websocket_get_init,
-        .kopadr = (SUBR) websocket_getArray_perf,
-        .aopadr = NULL
-    }
-};
-
-LINKAGE

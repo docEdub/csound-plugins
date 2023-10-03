@@ -4,8 +4,9 @@
     <title>Websocket test</title>
 </head>
 <body>
- <script>
+<script>
 
+var websocketIn = new WebSocket("ws://127.0.0.1:54321", "csound");
 var websocketOut = new WebSocket("ws://127.0.0.1:12345", "csound");
 
 const StringType = 1;
@@ -40,7 +41,7 @@ setInterval(() => {
 
             // Add the string data.
             written += textEncoder.encodeInto(test1_data, sendBuffer_asUint8s.subarray(written++)).written;
-            
+
             // Add the string data's null terminator.
             sendBuffer_asUint8s[written++] = 0;
 
