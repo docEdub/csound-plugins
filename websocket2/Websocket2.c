@@ -336,26 +336,26 @@ void WS_deinitWebsocket(CSOUND *csound, Websocket *ws)
     csound->Free(csound, ws);
 }
 
-int32_t WSget_deinit(CSOUND *csound, void *vp)
+int32_t websocket_get_deinit(CSOUND *csound, void *vp)
 {
-    WSget *p = vp;
+    WS_get *p = vp;
     WS_deinitWebsocket(csound, p->websocket);
     return OK;
 }
 
-int32_t WSget_init(CSOUND *csound, WSget *p)
+int32_t websocket_get_init(CSOUND *csound, WS_get *p)
 {
     p->csound = csound;
 
     char *portKey = initPortKeyString(*p->port, &p->portKey);
     p->websocket = WS_initWebsocket(csound, *p->port, portKey);
 
-    csound->RegisterDeinitCallback(csound, p, WSget_deinit);
+    csound->RegisterDeinitCallback(csound, p, websocket_get_deinit);
 
     return OK;
 }
 
-int32_t WSget_perf_asString(CSOUND *csound, WSget *p) {
+int32_t websocket_getString_perf(CSOUND *csound, WS_get *p) {
     const Websocket *const ws = p->websocket;
 
     CS_HASH_TABLE *hashTable = ws->pathStringHashTable;
@@ -397,7 +397,7 @@ int32_t WSget_perf_asString(CSOUND *csound, WSget *p) {
     return OK;
 }
 
-int32_t WSget_perf_asFloats(CSOUND *csound, WSget *p) {
+int32_t websocket_getArray_perf(CSOUND *csound, WS_get *p) {
     const Websocket *const ws = p->websocket;
 
     CS_HASH_TABLE *hashTable = ws->pathFloatsHashTable;
@@ -440,43 +440,43 @@ int32_t WSget_perf_asFloats(CSOUND *csound, WSget *p) {
 
 static OENTRY localops[] = {
     {
-        .opname = "WSget_s",
-        .dsblksiz = sizeof(WSget),
+        .opname = "websocket_getString",
+        .dsblksiz = sizeof(WS_get),
         .thread = 3,
         .outypes = "S",
         .intypes = "cS",
-        .iopadr = (SUBR) WSget_init,
-        .kopadr = (SUBR) WSget_perf_asString,
+        .iopadr = (SUBR) websocket_get_init,
+        .kopadr = (SUBR) websocket_getString_perf,
         .aopadr = NULL
     },
     {
-        .opname = "WSget_s",
-        .dsblksiz = sizeof(WSget),
+        .opname = "websocket_getString",
+        .dsblksiz = sizeof(WS_get),
         .thread = 3,
         .outypes = "S",
         .intypes = "iS",
-        .iopadr = (SUBR) WSget_init,
-        .kopadr = (SUBR) WSget_perf_asString,
+        .iopadr = (SUBR) websocket_get_init,
+        .kopadr = (SUBR) websocket_getString_perf,
         .aopadr = NULL
     },
     {
-        .opname = "WSget_k",
-        .dsblksiz = sizeof(WSget),
+        .opname = "websocket_getArray",
+        .dsblksiz = sizeof(WS_get),
         .thread = 3,
         .outypes = "k[]",
         .intypes = "cS",
-        .iopadr = (SUBR) WSget_init,
-        .kopadr = (SUBR) WSget_perf_asFloats,
+        .iopadr = (SUBR) websocket_get_init,
+        .kopadr = (SUBR) websocket_getArray_perf,
         .aopadr = NULL
     },
     {
-        .opname = "WSget_k",
-        .dsblksiz = sizeof(WSget),
+        .opname = "websocket_getArray",
+        .dsblksiz = sizeof(WS_get),
         .thread = 3,
         .outypes = "k[]",
         .intypes = "iS",
-        .iopadr = (SUBR) WSget_init,
-        .kopadr = (SUBR) WSget_perf_asFloats,
+        .iopadr = (SUBR) websocket_get_init,
+        .kopadr = (SUBR) websocket_getArray_perf,
         .aopadr = NULL
     }
 };

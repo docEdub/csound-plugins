@@ -17,7 +17,7 @@ typedef struct PortKey
     int nullTerminator;
 } PortKey;
 
-typedef struct WSget
+typedef struct WS_get
 {
     OPDS h;
     void *output; // Will be STRINGDAT* or ARRAYDAT*
@@ -26,7 +26,7 @@ typedef struct WSget
     PortKey portKey;
     CSOUND *csound;
     Websocket *websocket;
-} WSget;
+} WS_get;
 
 #ifdef __cplusplus
 }
