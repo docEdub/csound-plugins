@@ -23,22 +23,24 @@ endop
 
 instr 1
     SValue1 init ""
-    kValue2[] init 150
+    kValue2[] init 3
 
     SValue1 = websocket_getString(12345, "/test/1")
-    printsk("SValue1 = %s\n", SValue1)
-
     kValue2 = websocket_getArray(12345, "/test/2")
-    ki = 0
-    printsk("kValue = [");
-    while (ki < lenarray:k(kValue2)) do
-        if (ki > 0) then
-            printsk(", ")
-        endif
-        printsk("%f", kValue2[ki])
-        ki += 1
-    od
-    printsk("]\n")
+    if (changed2(kValue2) == 1) then
+        printsk("websocket_get... SValue1 = %s: ", SValue1)
+
+        ki = 0
+        printsk("kValue = [ ");
+        while (ki < lenarray:k(kValue2)) do
+            if (ki > 0) then
+                printsk(", ")
+            endif
+            printsk("%f", kValue2[ki])
+            ki += 1
+        od
+        printsk(" ]\n")
+    endif
 endin
 
 </CsInstruments>
