@@ -1,5 +1,5 @@
-#ifndef WEBSOCKET2_H
-#define WEBSOCKET2_H
+#ifndef WEBSOCKET_GET_H
+#define WEBSOCKET_GET_H
 
 #include "csdl.h"
 
@@ -32,4 +32,4 @@ typedef struct WS_get
 }
 #endif
 
-#endif // #ifndef WEBSOCKET2_H
+#endif // #ifndef WEBSOCKET_GET_H
