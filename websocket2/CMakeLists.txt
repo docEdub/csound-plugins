@@ -10,7 +10,7 @@ if(BUILD_WEBSOCKET_OPCODE)
     #set(CMAKE_CXX_FLAGS -g)
 
     # NB: Ending the plugin name with a number makes lldb unable to set breakpoints. I don't know why.
-    make_plugin(websocket2IO Websocket2.c)
+    make_plugin(websocket2IO websocket_get.c)
     target_link_libraries(websocket2IO ${websockets_library})
         message(STATUS "WEBSOCKETS LIB: ${websockets_library}")
         target_include_directories(websocket2IO PRIVATE ${CSOUND_INCLUDE_DIRS})
